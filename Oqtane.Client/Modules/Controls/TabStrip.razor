@@ -1,5 +1,5 @@
-﻿@namespace Oqtane.Modules.Controls
-@inherits ModuleBase
+@namespace Oqtane.Modules.Controls
+@inherits ModuleControlBase
 
 <CascadingValue Value="this">
     <div class="container-fluid">
@@ -7,20 +7,23 @@
             <ul class="nav nav-tabs" role="tablist">
                 @foreach (TabPanel tabPanel in _tabPanels)
                 {
-                    <li class="nav-item">
-                        @if (tabPanel.Name == ActiveTab)
-                        {
-                            <a class="nav-link active" data-toggle="tab" href="#@tabPanel.Name" role="tab">
-                                @DisplayHeading(tabPanel.Name, tabPanel.Heading)
-                            </a>
-                        }
-                        else
-                        {
-                            <a class="nav-link" data-toggle="tab" href="#@tabPanel.Name" role="tab">
-                                @DisplayHeading(tabPanel.Name, tabPanel.Heading)
-                            </a>
-                        }
-                    </li>
+                    @if (IsAuthorized(tabPanel))
+                    {
+                        <li class="nav-item">
+                            @if (tabPanel.Name == ActiveTab)
+                            {
+                                <a class="nav-link active" data-toggle="tab" href="#@tabPanel.Name" role="tab" @onclick:preventDefault="true">
+                                    @tabPanel.DisplayHeading()
+                                </a>
+                            }
+                            else
+                            {
+                                <a class="nav-link" data-toggle="tab" href="#@tabPanel.Name" role="tab" @onclick:preventDefault="true">
+                                    @tabPanel.DisplayHeading()
+                                </a>
+                            }
+                        </li>
+                    }
                 }
             </ul>
             <div class="tab-content">
@@ -38,7 +41,15 @@
     public RenderFragment ChildContent { get; set; } // contains the TabPanels
 
     [Parameter]
-    public string ActiveTab { get; set; } // optional - defaults to first TabPanel if not specified
+    public string ActiveTab { get; set; } // optional - defaults to first TabPanel if not specified. Can also be set using a "tab=" querystring parameter.
+
+    protected override void OnInitialized()
+    {
+        if (PageState.QueryString.ContainsKey("tab"))
+        {
+            ActiveTab = PageState.QueryString["tab"];
+        }
+    }
 
     internal void AddTabPanel(TabPanel tabPanel)
     {
@@ -47,10 +58,33 @@
         {
             ActiveTab = tabPanel.Name;
         }
+        StateHasChanged();
     }
 
-    private string DisplayHeading(string Name, string Heading)
+    private bool IsAuthorized(TabPanel tabPanel)
     {
-        return (string.IsNullOrEmpty(Heading)) ? Name : Heading;
+        var authorized = false;
+        switch (tabPanel.Security)
+        {
+            case null: // security not specified - assume SecurityAccessLevel.Anonymous
+                authorized = true;
+                break;
+            case SecurityAccessLevel.Anonymous:
+                authorized = true;
+                break;
+            case SecurityAccessLevel.View:
+                authorized = UserSecurity.IsAuthorized(PageState.User, PermissionNames.View, ModuleState.Permissions);
+                break;
+            case SecurityAccessLevel.Edit:
+                authorized = UserSecurity.IsAuthorized(PageState.User, PermissionNames.Edit, ModuleState.Permissions);
+                break;
+            case SecurityAccessLevel.Admin:
+                authorized = UserSecurity.IsAuthorized(PageState.User, RoleNames.Admin);
+                break;
+            case SecurityAccessLevel.Host:
+                authorized = UserSecurity.IsAuthorized(PageState.User, RoleNames.Host);
+                break;
+        }
+        return authorized;
     }
 }

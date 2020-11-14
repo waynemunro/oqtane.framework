@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+using System;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -7,65 +6,37 @@ using System.Runtime.Loader;
 using Microsoft.Extensions.Hosting;
 using Oqtane.Infrastructure;
 using Oqtane.Modules;
+using Oqtane.Services;
+using Oqtane.Shared;
+using Oqtane.UI;
 
 // ReSharper disable once CheckNamespace
 namespace Microsoft.Extensions.DependencyInjection
 {
     public static class OqtaneServiceCollectionExtensions
     {
-        private static readonly IList<Assembly> OqtaneModuleAssemblies = new List<Assembly>();
-
-        private static Assembly[] Assemblies => AppDomain.CurrentDomain.GetAssemblies();
-
-        internal static IEnumerable<Assembly> GetOqtaneModuleAssemblies() => OqtaneModuleAssemblies;
-
-        public static IServiceCollection AddOqtaneModules(this IServiceCollection services)
+        public static IServiceCollection AddOqtane(this IServiceCollection services, Runtime runtime, string[] supportedCultures)
         {
-            if (services is null)
-            {
-                throw new ArgumentNullException(nameof(services));
-            }
-
-            LoadAssemblies("Module");
+            LoadAssemblies();
+            LoadSatelliteAssemblies(supportedCultures);
+            services.AddOqtaneServices(runtime);
 
             return services;
         }
 
-        public static IServiceCollection AddOqtaneThemes(this IServiceCollection services)
+        private static IServiceCollection AddOqtaneServices(this IServiceCollection services, Runtime runtime)
         {
             if (services is null)
             {
                 throw new ArgumentNullException(nameof(services));
             }
 
-            LoadAssemblies("Theme");
+            var hostedServiceType = typeof(IHostedService);
 
-            return services;
-        }
-
-        public static IServiceCollection AddOqtaneSiteTemplates(this IServiceCollection services)
-        {
-            if (services is null)
-            {
-                throw new ArgumentNullException(nameof(services));
-            }
-
-            LoadAssemblies("SiteTemplate");
-
-            return services;
-        }
-
-        public static IServiceCollection AddOqtaneServices(this IServiceCollection services)
-        {
-            if (services is null)
-            {
-                throw new ArgumentNullException(nameof(services));
-            }
-
-            // dynamically register module services, contexts, and repository classes
-            var assemblies = Assemblies.Where(item => item.FullName != null && (item.FullName.StartsWith("Oqtane.") || item.FullName.Contains(".Module."))).ToArray();
+            var assemblies = AppDomain.CurrentDomain.GetOqtaneAssemblies();
             foreach (var assembly in assemblies)
             {
+                // dynamically register module services, contexts, and repository classes
                 var implementationTypes = assembly.GetInterfaces<IService>();
                 foreach (var implementationType in implementationTypes)
                 {
@@ -75,22 +46,8 @@ namespace Microsoft.Extensions.DependencyInjection
                         services.AddScoped(serviceType ?? implementationType, implementationType);
                     }
                 }
-            }
 
-            return services;
-        }
-
-        public static IServiceCollection AddOqtaneHostedServices(this IServiceCollection services)
-        {
-            if (services is null)
-            {
-                throw new ArgumentNullException(nameof(services));
-            }
-
-            // dynamically register hosted services
-            var hostedServiceType = typeof(IHostedService);
-            foreach (var assembly in Assemblies)
-            {
+                // dynamically register hosted services
                 var serviceTypes = assembly.GetTypes(hostedServiceType);
                 foreach (var serviceType in serviceTypes)
                 {
@@ -99,34 +56,139 @@ namespace Microsoft.Extensions.DependencyInjection
                         services.AddSingleton(hostedServiceType, serviceType);
                     }
                 }
-            }
 
+                // register server startup services
+                var startUps = assembly.GetInstances<IServerStartup>();
+                foreach (var startup in startUps)
+                {
+                    startup.ConfigureServices(services);
+                }
+
+                if (runtime == Runtime.Server)
+                {
+                    // register client startup services if running on server
+                    assembly.GetInstances<IClientStartup>()
+                        .ToList()
+                        .ForEach(x => x.ConfigureServices(services));
+                }
+            }
             return services;
         }
 
-        private static void LoadAssemblies(string pattern)
+        private static void LoadAssemblies()
         {
             var assemblyPath = Path.GetDirectoryName(Assembly.GetEntryAssembly()?.Location);
             if (assemblyPath == null) return;
 
+            AssemblyLoadContext.Default.Resolving += ResolveDependencies;
+
             var assembliesFolder = new DirectoryInfo(assemblyPath);
+            var assemblies = AppDomain.CurrentDomain.GetAssemblies();
 
             // iterate through Oqtane assemblies in /bin ( filter is narrow to optimize loading process )
-            foreach (var file in assembliesFolder.EnumerateFiles($"*.{pattern}.*.dll"))
+            foreach (var dll in assembliesFolder.EnumerateFiles($"*.dll", SearchOption.TopDirectoryOnly).Where(f => f.IsOqtaneAssembly()))
             {
-                // check if assembly is already loaded
-                var assembly = Assemblies.FirstOrDefault(a =>!a.IsDynamic && a.Location == file.FullName);
-                if (assembly == null)
+                AssemblyName assemblyName;
+                try
                 {
-                    // load assembly from stream to prevent locking file ( as long as dependencies are in /bin they will load as well )
-                    assembly = AssemblyLoadContext.Default.LoadFromStream(new MemoryStream(File.ReadAllBytes(file.FullName)));
-                    if (pattern == "Module")
+                    assemblyName = AssemblyName.GetAssemblyName(dll.FullName);
+                }
+                catch
+                {
+                    Console.WriteLine($"Not Assembly : {dll.Name}");
+                    continue;
+                }
+
+                if (!assemblies.Any(a => AssemblyName.ReferenceMatchesDefinition(assemblyName, a.GetName())))
+                {
+                    try
                     {
-                        // build a list of module assemblies
-                        OqtaneModuleAssemblies.Add(assembly);
+                        var pdb = Path.ChangeExtension(dll.FullName, ".pdb");
+                        Assembly assembly = null;
+
+                        // load assembly ( and symbols ) from stream to prevent locking files ( as long as dependencies are in /bin they will load as well )
+                        if (File.Exists(pdb))
+                        {
+                            assembly = AssemblyLoadContext.Default.LoadFromStream(new MemoryStream(File.ReadAllBytes(dll.FullName)), new MemoryStream(File.ReadAllBytes(pdb)));
+                        }
+                        else
+                        {
+                            assembly = AssemblyLoadContext.Default.LoadFromStream(new MemoryStream(File.ReadAllBytes(dll.FullName)));
+                        }
+                        Console.WriteLine($"Loaded : {assemblyName}");
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine($"Failed : {assemblyName}\n{e}");
                     }
                 }
             }
         }
+
+        private static void LoadSatelliteAssemblies(string[] supportedCultures)
+        {
+            var assemblies = AppDomain.CurrentDomain.GetAssemblies();
+            var assemblyPath = Path.GetDirectoryName(Assembly.GetEntryAssembly()?.Location);
+            if (assemblyPath == null)
+            {
+                return;
+            }
+
+            AssemblyLoadContext.Default.Resolving += ResolveDependencies;
+
+            foreach (var culture in supportedCultures)
+            {
+                if (culture == Constants.DefaultCulture)
+                {
+                    continue;
+                }
+
+                var assembliesFolder = new DirectoryInfo(Path.Combine(assemblyPath, culture));
+                if (assembliesFolder.Exists)
+                {
+                    foreach (var assemblyFile in assembliesFolder.EnumerateFiles(Constants.SatelliteAssemblyExtension))
+                    {
+                        AssemblyName assemblyName;
+                        try
+                        {
+                            assemblyName = AssemblyName.GetAssemblyName(assemblyFile.FullName);
+                        }
+                        catch
+                        {
+                            Console.WriteLine($"Not Satellite Assembly : {assemblyFile.Name}");
+                            continue;
+                        }
+
+                        try
+                        {
+                            Assembly assembly = AssemblyLoadContext.Default.LoadFromStream(new MemoryStream(File.ReadAllBytes(assemblyFile.FullName)));
+                            Console.WriteLine($"Loaded : {assemblyName}");
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine($"Failed : {assemblyName}\n{e}");
+                        }
+                    }
+                }
+                else
+                {
+                    Console.WriteLine($"The satellite assemblies folder named '{culture}' is not found.");
+                }
+            }
+        }
+
+        private static Assembly ResolveDependencies(AssemblyLoadContext context, AssemblyName name)
+        {
+            var assemblyPath = Path.GetDirectoryName(Assembly.GetEntryAssembly()?.Location) + "\\" + name.Name + ".dll";
+            if (File.Exists(assemblyPath))
+            {
+                return context.LoadFromStream(new MemoryStream(File.ReadAllBytes(assemblyPath)));
+            }
+            else
+            {
+                return null;
+            }
+        }
+
     }
 }

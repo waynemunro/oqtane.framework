@@ -1,5 +1,5 @@
 ﻿@namespace Oqtane.Modules.Controls
-@inherits ModuleBase
+@inherits ModuleControlBase
 @inject IRoleService RoleService
 @inject IUserService UserService
 
@@ -9,10 +9,10 @@
     <table class="table" style="width: 50%; min-width: 250px;">
         <tbody>
             <tr>
-                <th>Role</th>
+                <th scope="col">Role</th>
                 @foreach (PermissionString permission in _permissions)
                 {
-                    <th style="text-align: center;">@permission.PermissionName @EntityName</th>
+                    <th style="text-align: center; width: 1px;">@permission.PermissionName</th>
                 }
             </tr>
             @foreach (Role role in _roles)
@@ -35,10 +35,10 @@
         <table class="table" style="width: 50%; min-width: 250px;">
             <thead>
                 <tr>
-                    <th>User</th>
+                    <th scope="col">User</th>
                     @foreach (PermissionString permission in _permissions)
                     {
-                        <th style="text-align: center;">@permission.PermissionName @EntityName</th>
+                        <th style="text-align: center; width: 1px;">@permission.PermissionName</th>
                     }
                 </tr>
             </thead>
@@ -51,7 +51,7 @@
                         @foreach (PermissionString permission in _permissions)
                         {
                             var p = permission;
-                            <td style="text-align: center;">
+                            <td style="text-align: center; width: 1px;">
                                 <TriStateCheckBox Value=@GetPermissionValue(p.Permissions, userid) Disabled=false OnChange="@(e => PermissionChanged(e, p.PermissionName, userid))" />
                             </td>
                         }
@@ -63,9 +63,10 @@
     <table class="table" style="width: 50%; min-width: 250px;">
         <tbody>
             <tr>
-                <td style="text-align: right;"><label for="Username" class="control-label">User: </label></td>
-                <td><input type="text" name="Username" class="form-control" placeholder="Enter Username" @bind="@_username" /></td>
-                <td style="text-align: left;"><button type="button" class="btn btn-primary" @onclick="AddUser">Add</button></td>
+                <td class="input-group">
+                    <input type="text" name="Username" class="form-control" placeholder="Enter Username" @bind="@_username" />
+                    <button type="button" class="btn btn-primary" @onclick="AddUser">Add</button>
+                </td>
             </tr>
         </tbody>
     </table>
@@ -102,16 +103,16 @@
         }
 
         _roles = await RoleService.GetRolesAsync(ModuleState.SiteId);
-        _roles.Insert(0, new Role { Name = Constants.AllUsersRole });
+        _roles.Insert(0, new Role { Name = RoleNames.Everyone });
 
         _permissions = new List<PermissionString>();
-        
+
         foreach (string permissionname in _permissionnames.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
         {
             // initialize with admin role
-            _permissions.Add(new PermissionString { PermissionName = permissionname, Permissions = Constants.AdminRole });
+            _permissions.Add(new PermissionString { PermissionName = permissionname, Permissions = RoleNames.Admin });
         }
-        
+
         if (!string.IsNullOrEmpty(Permissions))
         {
             // populate permissions
@@ -121,7 +122,7 @@
                 {
                     _permissions[_permissions.FindIndex(item => item.PermissionName == permissionstring.PermissionName)].Permissions = permissionstring.Permissions;
                 }
-                
+
                 if (permissionstring.Permissions.Contains("["))
                 {
                     foreach (string user in permissionstring.Permissions.Split(new char[] { '[' }, StringSplitOptions.RemoveEmptyEntries))
@@ -160,7 +161,7 @@
     }
 
     private bool GetPermissionDisabled(string roleName)
-        => roleName == Constants.AdminRole
+        => roleName == RoleNames.Admin
             ? true
             : false;
 
@@ -181,7 +182,7 @@
                 _message = "Username Does Not Exist";
             }
         }
-        
+
         _username = string.Empty;
     }
 
@@ -207,7 +208,7 @@
                 case null:
                     break; // permission not specified
             }
-            
+
             _permissions[_permissions.FindIndex(item => item.PermissionName == permissionName)].Permissions = string.Join(";", ids.ToArray());
         }
     }
@@ -225,8 +226,8 @@
         {
             permission = _permissions[i];
             List<string> ids = permission.Permissions.Split(';').ToList();
-            ids.Remove("!" + Constants.AllUsersRole); // remove deny all users
-            ids.Remove("!" + Constants.RegisteredRole); // remove deny registered users
+            ids.Remove("!" + RoleNames.Everyone); // remove deny all users
+            ids.Remove("!" + RoleNames.Registered); // remove deny registered users
             permission.Permissions = string.Join(";", ids.ToArray());
             _permissions[i] = permission;
         }

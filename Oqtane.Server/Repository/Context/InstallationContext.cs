@@ -17,7 +17,9 @@ namespace Oqtane.Repository
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
             => optionsBuilder.UseSqlServer(_connectionString);
 
-        public virtual DbSet<ApplicationVersion> ApplicationVersion { get; set; }
+        public virtual DbSet<Alias> Alias { get; set; }
         public virtual DbSet<Tenant> Tenant { get; set; }
+        public virtual DbSet<ModuleDefinition> ModuleDefinition { get; set; }
+        public virtual DbSet<Job> Job { get; set; }
     }
 }

@@ -2,6 +2,6 @@
 {
     public interface IContainerControl
     {
-        string Name { get; }
+
     }
 }

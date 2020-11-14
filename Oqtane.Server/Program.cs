@@ -12,11 +12,10 @@ namespace Oqtane.Server
         public static void Main(string[] args)
         {
             var host = BuildWebHost(args);
-            // execute any database migrations for the framework or extensions
             using (var serviceScope = host.Services.GetRequiredService<IServiceScopeFactory>().CreateScope())
             {
-                var databaseManager = serviceScope.ServiceProvider.GetService<DatabaseManager>();
-                databaseManager.StartupMigration();
+                var databaseManager = serviceScope.ServiceProvider.GetService<IDatabaseManager>();
+                databaseManager.Install();
             }
             host.Run();
         }
@@ -27,6 +26,7 @@ namespace Oqtane.Server
                     .AddCommandLine(args)
                     .Build())
                 .UseStartup<Startup>()
+                .ConfigureLocalizationSettings()
                 .Build();
     }
 }

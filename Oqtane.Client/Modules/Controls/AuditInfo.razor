@@ -1,5 +1,5 @@
-﻿@namespace Oqtane.Modules.Controls
-@inherits ModuleBase
+@namespace Oqtane.Modules.Controls
+@inherits ModuleControlBase
 
 @if (_text != string.Empty)
 {
@@ -7,21 +7,21 @@
 }
 
 @code {
-   
+
     private string _text = string.Empty;
 
     [Parameter]
     public string CreatedBy { get; set; }
 
     [Parameter]
-    public DateTime CreatedOn { get; set; }
+    public DateTime? CreatedOn { get; set; }
 
     [Parameter]
     public string ModifiedBy { get; set; }
 
     [Parameter]
-    public DateTime ModifiedOn { get; set; }
-        
+    public DateTime? ModifiedOn { get; set; }
+
     [Parameter]
     public string DeletedBy { get; set; }
 
@@ -37,54 +37,54 @@
     protected override void OnParametersSet()
     {
         _text = string.Empty;
-        if (!String.IsNullOrEmpty(CreatedBy) || CreatedOn != null)
+        if (!String.IsNullOrEmpty(CreatedBy) || CreatedOn.HasValue)
         {
             _text += "<p style=\"" + Style + "\">Created ";
-            
+
             if (!String.IsNullOrEmpty(CreatedBy))
             {
                 _text += " by <b>" + CreatedBy + "</b>";
             }
-            
+
             if (CreatedOn != null)
             {
-                _text += " on <b>" + CreatedOn.ToString("MMM dd yyyy HH:mm:ss") + "</b>";
+                _text += " on <b>" + CreatedOn.Value.ToString("MMM dd yyyy HH:mm:ss") + "</b>";
             }
-            
+
             _text += "</p>";
         }
 
-        if (!String.IsNullOrEmpty(ModifiedBy) || ModifiedOn != null)
+        if (!String.IsNullOrEmpty(ModifiedBy) || ModifiedOn.HasValue)
         {
             _text += "<p style=\"" + Style + "\">Last modified ";
-            
+
             if (!String.IsNullOrEmpty(ModifiedBy))
             {
                 _text += " by <b>" + ModifiedBy + "</b>";
             }
-            
+
             if (ModifiedOn != null)
             {
-                _text += " on <b>" + ModifiedOn.ToString("MMM dd yyyy HH:mm:ss") + "</b>";
+                _text += " on <b>" + ModifiedOn.Value.ToString("MMM dd yyyy HH:mm:ss") + "</b>";
             }
-            
+
             _text += "</p>";
         }
 
         if (!String.IsNullOrEmpty(DeletedBy) || DeletedOn.HasValue)
         {
             _text += "<p style=\"" + Style + "\">Deleted ";
-            
+
             if (!String.IsNullOrEmpty(DeletedBy))
             {
                 _text += " by <b>" + DeletedBy + "</b>";
             }
-            
+
             if (DeletedOn != null)
             {
                 _text += " on <b>" + DeletedOn.Value.ToString("MMM dd yyyy HH:mm:ss") + "</b>";
             }
-            
+
             _text += "</p>";
         }
     }

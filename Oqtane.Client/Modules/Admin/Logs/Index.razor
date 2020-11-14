@@ -49,7 +49,7 @@ else
     {
         <Pager Items="@_logs">
             <Header>
-                <th>&nbsp;</th>
+                <th style="width: 1px;">&nbsp;</th>
                 <th>Date</th>
                 <th>Level</th>
                 <th>Feature</th>
@@ -76,7 +76,7 @@ else
     private string _rows = "10";
     private List<Log> _logs;
 
-    public override SecurityAccessLevel SecurityAccessLevel => SecurityAccessLevel.Admin;
+    public override SecurityAccessLevel SecurityAccessLevel => SecurityAccessLevel.Host;
 
     protected override async Task OnInitializedAsync()
     {

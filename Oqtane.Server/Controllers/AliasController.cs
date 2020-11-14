@@ -10,26 +10,29 @@ using System.Globalization;
 using Oqtane.Enums;
 using Oqtane.Infrastructure;
 using Oqtane.Repository;
+using Microsoft.AspNetCore.Http;
 
 namespace Oqtane.Controllers
 {
-    [Route("{site}/api/[controller]")]
+    [Route(ControllerRoutes.Default)]
     public class AliasController : Controller
     {
         private readonly IAliasRepository _aliases;
+        private readonly IHttpContextAccessor _accessor;
         private readonly ISyncManager _syncManager;
         private readonly ILogManager _logger;
 
-        public AliasController(IAliasRepository aliases, ISyncManager syncManager, ILogManager logger)
+        public AliasController(IAliasRepository aliases, IHttpContextAccessor accessor, ISyncManager syncManager, ILogManager logger)
         {
             _aliases = aliases;
+            _accessor = accessor;
             _syncManager = syncManager;
             _logger = logger;
         }
 
         // GET: api/<controller>
         [HttpGet]
-        [Authorize(Roles = Constants.AdminRole)]
+        [Authorize(Roles = RoleNames.Admin)]
         public IEnumerable<Alias> Get()
         {
             return _aliases.GetAliases();
@@ -37,41 +40,53 @@ namespace Oqtane.Controllers
 
         // GET api/<controller>/5
         [HttpGet("{id}")]
-        [Authorize(Roles = Constants.AdminRole)]
+        [Authorize(Roles = RoleNames.Admin)]
         public Alias Get(int id)
         {
             return _aliases.GetAlias(id);
         }
 
-        // GET api/<controller>/name/localhost:12345?lastsyncdate=yyyyMMddHHmmssfff
-        [HttpGet("name/{name}")]
-        public Alias Get(string name, string lastsyncdate)
+        // GET api/<controller>/name/xxx?sync=yyyyMMddHHmmssfff
+        [HttpGet("name/{**name}")]
+        public Alias Get(string name, string sync)
         {
-            name = WebUtility.UrlDecode(name);
-            List<Alias> aliases = _aliases.GetAliases().ToList();
+            List<Alias> aliases = _aliases.GetAliases().ToList(); // cached
             Alias alias = null;
-            alias = aliases.FirstOrDefault(item => item.Name == name);
-            if (name != null && (alias == null && name.Contains("/")))
+            if (_accessor.HttpContext != null)
             {
-                // lookup alias without folder name
-                alias = aliases.Find(item => item.Name == name.Substring(0, name.IndexOf("/", StringComparison.Ordinal)));
+                name = (name == "~") ? "" : name;
+                name = _accessor.HttpContext.Request.Host.Value + "/" + WebUtility.UrlDecode(name);
+                var segments = name.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+
+                // iterate segments in reverse order
+                for (int i = segments.Length; i > 0; i--)
+                {
+                    name = string.Join("/", segments, 0, i);
+                    alias = aliases.Find(item => item.Name == name);
+                    if (alias != null)
+                    {
+                        break; // found a matching alias
+                    }
+                }
             }
-            if (alias == null && aliases.Count > 0)
+            if (alias == null && aliases.Any())
             {
                 // use first alias if name does not exist
                 alias = aliases.FirstOrDefault();
             }
 
             // get sync events
-            alias.SyncDate = DateTime.UtcNow;
-            alias.SyncEvents = _syncManager.GetSyncEvents(DateTime.ParseExact(lastsyncdate, "yyyyMMddHHmmssfff", CultureInfo.InvariantCulture));
-
-            return alias; 
+            if (alias != null)
+            {
+                alias.SyncDate = DateTime.UtcNow;
+                alias.SyncEvents = _syncManager.GetSyncEvents(alias.TenantId, DateTime.ParseExact(sync, "yyyyMMddHHmmssfff", CultureInfo.InvariantCulture));
+            }
+            return alias;
         }
         
         // POST api/<controller>
         [HttpPost]
-        [Authorize(Roles = Constants.AdminRole)]
+        [Authorize(Roles = RoleNames.Admin)]
         public Alias Post([FromBody] Alias alias)
         {
             if (ModelState.IsValid)
@@ -84,7 +99,7 @@ namespace Oqtane.Controllers
 
         // PUT api/<controller>/5
         [HttpPut("{id}")]
-        [Authorize(Roles = Constants.AdminRole)]
+        [Authorize(Roles = RoleNames.Admin)]
         public Alias Put(int id, [FromBody] Alias alias)
         {
             if (ModelState.IsValid)
@@ -97,7 +112,7 @@ namespace Oqtane.Controllers
 
         // DELETE api/<controller>/5
         [HttpDelete("{id}")]
-        [Authorize(Roles = Constants.AdminRole)]
+        [Authorize(Roles = RoleNames.Admin)]
         public void Delete(int id)
         {
             _aliases.DeleteAlias(id);

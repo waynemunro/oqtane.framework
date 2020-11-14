@@ -1,5 +1,5 @@
-﻿@namespace Oqtane.Modules.Controls
-@inherits ModuleBase
+@namespace Oqtane.Modules.Controls
+@inherits LocalizableComponent
 @inject IUserService UserService
 
 @if (_authorized)
@@ -20,7 +20,7 @@
     private string _parameters = string.Empty;
     private string _classname = "btn btn-primary";
     private string _style = string.Empty;
-    private bool _editmode = true;
+    private bool _editmode = false;
     private bool _authorized = false;
     private string _iconSpan = string.Empty;
 
@@ -46,17 +46,27 @@
     public bool Disabled { get; set; } // optional
 
     [Parameter]
-    public string EditMode { get; set; } // optional - specifies if a user must be in edit mode to see the action - default is true
+    public string EditMode { get; set; } // optional - specifies if an authorized user must be in edit mode to see the action - default is false.
 
     [Parameter]
     public string IconName { get; set; } // optional - specifies an icon for the link - default is no icon
 
+    [Parameter]
+    public bool IconOnly { get; set; } // optional - specifies only icon in link
+
     protected override void OnParametersSet()
     {
+        base.OnParametersSet();
+
         _text = Action;
         if (!string.IsNullOrEmpty(Text))
         {
             _text = Text;
+        }
+
+        if (IconOnly && !string.IsNullOrEmpty(IconName))
+        {
+            _text = string.Empty;
         }
 
         if (!string.IsNullOrEmpty(Parameters))
@@ -81,7 +91,13 @@
 
         if (!string.IsNullOrEmpty(IconName))
         {
-            _iconSpan = $"<span class=\"oi oi-{IconName}\"></span>&nbsp;";
+            _iconSpan = $"<span class=\"oi oi-{IconName}\"></span>{(IconOnly ? "" : "&nbsp")}";
+
+        }
+
+        if (IsLocalizable)
+        {
+            _text = Localize(nameof(Text));
         }
 
         _url = EditUrl(Action, _parameters);
@@ -100,8 +116,8 @@
                 var moduleType = Type.GetType(typename);
                 if (moduleType != null)
                 {
-                    var moduleobject = Activator.CreateInstance(moduleType);
-                    security = (SecurityAccessLevel)moduleType.GetProperty("SecurityAccessLevel").GetValue(moduleobject, null);
+                    var moduleobject = Activator.CreateInstance(moduleType) as IModuleControl;
+                    security = moduleobject.SecurityAccessLevel;
                 }
                 else
                 {
@@ -113,7 +129,7 @@
             {
                 security = Security.Value;
             }
-            
+
             switch (security)
             {
                 case SecurityAccessLevel.Anonymous:
@@ -126,14 +142,14 @@
                     authorized = UserSecurity.IsAuthorized(PageState.User, PermissionNames.Edit, ModuleState.Permissions);
                     break;
                 case SecurityAccessLevel.Admin:
-                    authorized = UserSecurity.IsAuthorized(PageState.User, Constants.AdminRole);
+                    authorized = UserSecurity.IsAuthorized(PageState.User, RoleNames.Admin);
                     break;
                 case SecurityAccessLevel.Host:
-                    authorized = UserSecurity.IsAuthorized(PageState.User, Constants.HostRole);
+                    authorized = UserSecurity.IsAuthorized(PageState.User, RoleNames.Host);
                     break;
             }
         }
-        
+
         return authorized;
     }
 }

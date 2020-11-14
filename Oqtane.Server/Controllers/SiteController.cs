@@ -10,7 +10,7 @@ using Oqtane.Repository;
 
 namespace Oqtane.Controllers
 {
-    [Route("{site}/api/[controller]")]
+    [Route(ControllerRoutes.Default)]
     public class SiteController : Controller
     {
         private readonly ISiteRepository _sites;
@@ -28,7 +28,7 @@ namespace Oqtane.Controllers
 
         // GET: api/<controller>
         [HttpGet]
-        [Authorize(Roles = Constants.HostRole)]
+        [Authorize(Roles = RoleNames.Host)]
         public IEnumerable<Site> Get()
         {
             return _sites.GetSites();
@@ -57,7 +57,7 @@ namespace Oqtane.Controllers
                 }
                 else
                 {
-                    authorized = User.IsInRole(Constants.HostRole);
+                    authorized = User.IsInRole(RoleNames.Host);
                 }
                 if (authorized)
                 {
@@ -70,13 +70,13 @@ namespace Oqtane.Controllers
 
         // PUT api/<controller>/5
         [HttpPut("{id}")]
-        [Authorize(Roles = Constants.HostRole)]
+        [Authorize(Roles = RoleNames.Admin)]
         public Site Put(int id, [FromBody] Site site)
         {
             if (ModelState.IsValid)
             {
                 site = _sites.UpdateSite(site);
-                _syncManager.AddSyncEvent(EntityNames.Site, site.SiteId);
+                _syncManager.AddSyncEvent(_tenants.GetTenant().TenantId, EntityNames.Site, site.SiteId);
                 _logger.Log(site.SiteId, LogLevel.Information, this, LogFunction.Update, "Site Updated {Site}", site);
             }
             return site;
@@ -84,7 +84,7 @@ namespace Oqtane.Controllers
 
         // DELETE api/<controller>/5
         [HttpDelete("{id}")]
-        [Authorize(Roles = Constants.HostRole)]
+        [Authorize(Roles = RoleNames.Host)]
         public void Delete(int id)
         {
             _sites.DeleteSite(id);

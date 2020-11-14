@@ -4,186 +4,213 @@
 @inject IPageService PageService
 @inject IThemeService  ThemeService
 
-@if (_themeList != null)
-{
-    <table class="table table-borderless">
-        <tr>
-            <td>
-                <Label For="Name" HelpText="Enter the page name">Name: </Label>
-            </td>
-            <td>
-                <input id="name" class="form-control" @bind="@_name" />
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <Label For="Title" HelpText="Enter the page title">Title: </Label>
-            </td>
-            <td>
-                <input id="Title" class="form-control" @bind="@_title" />
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <Label For="Path" HelpText="Enter the path for the page">Path: </Label>
-            </td>
-            <td>
-                <input id="Path" class="form-control" @bind="@_path" />
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <Label For="Parent" HelpText="Select the parent for the page">Parent: </Label>
-            </td>
-            <td>
-                <select id="Parent" class="form-control" @onchange="(e => ParentChanged(e))">
-                    <option value="-1">&lt;Site Root&gt;</option>
-                    @foreach (Page page in _pageList)
-                    {
-                        if (page.PageId.ToString() == _parentid)
+<TabStrip>
+    <TabPanel Name="Settings">
+        @if (_themeList != null)
+        {
+            <table class="table table-borderless">
+                <tr>
+                    <td>
+                        <Label For="Name" HelpText="Enter the page name">Name: </Label>
+                    </td>
+                    <td>
+                        <input id="Name" class="form-control" @bind="@_name" />
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <Label For="Parent" HelpText="Select the parent for the page in the site hierarchy">Parent: </Label>
+                    </td>
+                    <td>
+                        <select id="Parent" class="form-control" @onchange="(e => ParentChanged(e))">
+                            <option value="-1">&lt;Site Root&gt;</option>
+                            @foreach (Page page in _pageList)
+                            {
+                                if (page.PageId.ToString() == _parentid)
+                                {
+                                    <option value="@(page.PageId)" selected>@(new string('-', page.Level * 2))@(page.Name)</option>
+                                }
+                                else
+                                {
+                                    <option value="@(page.PageId)">@(new string('-', page.Level * 2))@(page.Name)</option>
+                                }
+                            }
+                        </select>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <Label For="Move" HelpText="Select the location where you would like the page to be moved in relation to other pages">Move: </Label>
+                    </td>
+                    <td>
+                        <select id="Move" class="form-control" @bind="@_insert">
+                            @if (_parentid == _currentparentid)
+                            {
+                                <option value="=">&lt;Maintain Current Location&gt;</option>
+                            }
+                            <option value="<<">To Beginning</option>
+                            @if (_children != null && _children.Count > 0)
+                            {
+                                <option value="<">Before</option>
+                                <option value=">">After</option>
+                            }
+                            <option value=">>">To End</option>
+                        </select>
+                        @if (_children != null && _children.Count > 0 && (_insert == "<" || _insert == ">"))
                         {
-                            <option value="@(page.PageId)" selected>@(new string('-', page.Level * 2))@(page.Name)</option>
+                            <select class="form-control" @bind="@_childid">
+                                <option value="-1">&lt;Select Page&gt;</option>
+                                @foreach (Page page in _children)
+                                {
+                                    <option value="@(page.PageId)">@(page.Name)</option>
+                                }
+                            </select>
                         }
-                        else
-                        {
-                            <option value="@(page.PageId)">@(new string('-', page.Level * 2))@(page.Name)</option>
-                        }
-                    }
-                </select>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <Label For="Move" HelpText="Select where you wan to move the page">Move: </Label>
-            </td>
-            <td>
-                <select id="Move" class="form-control" @bind="@_insert">
-                    @if (_parentid == _currentparentid)
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <Label For="Navigation" HelpText="Select whether the page is part of the site navigation or hidden">Navigation? </Label>
+                    </td>
+                    <td>
+                        <select id="Navigation" class="form-control" @bind="@_isnavigation">
+                            <option value="True">Yes</option>
+                            <option value="False">No</option>
+                        </select>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <Label For="Path" HelpText="Optionally enter a url path for this page (ie. home ). If you do not provide a url path, the page name will be used.">Url Path: </Label>
+                    </td>
+                    <td>
+                        <input id="Path" class="form-control" @bind="@_path" />
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <Label For="Url" HelpText="Optionally enter a url which this page should redirect to when a user navigates to it">Redirect: </Label>
+                    </td>
+                    <td>
+                        <input id="Url" class="form-control" @bind="@_url" />
+                    </td>
+                </tr>
+            </table>
+            <Section Name="Appearance">
+                <table class="table table-borderless">
+                    <tr>
+                        <td>
+                            <Label For="Title" HelpText="Optionally enter the page title. If you do not provide a page title, the page name will be used.">Title: </Label>
+                        </td>
+                        <td>
+                            <input id="Title" class="form-control" @bind="@_title" />
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <Label For="Theme" HelpText="Select the theme for this page">Theme: </Label>
+                        </td>
+                        <td>
+                            <select id="Theme" class="form-control" @onchange="(e => ThemeChanged(e))">
+                                <option value="-">&lt;Inherit From Site&gt;</option>
+                                @foreach (var theme in _themes)
+                                {
+                                    if (theme.TypeName == _themetype)
+                                    {
+                                        <option value="@theme.TypeName" selected>@theme.Name</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="@theme.TypeName">@theme.Name</option>
+                                    }
+                                }
+                            </select>
+                        </td>
+                    </tr>
+                    @if (_layouts.Count > 0)
                     {
-                        <option value="=">&lt;Maintain Current Location&gt;</option>
+                        <tr>
+                            <td>
+                                <Label For="Layout" HelpText="Select a layout for the page (if the selected theme supports it)">Layout: </Label>
+                            </td>
+                            <td>
+                                <select id="Layout" class="form-control" @bind="@_layouttype">
+                                    <option value="-">&lt;Inherit From Site&gt;</option>
+                                    @foreach (var layout in _layouts)
+                                    {
+                                        if (layout.TypeName == _layouttype)
+                                        {
+                                            <option value="@(layout.TypeName)" selected>@(layout.Name)</option>
+                                        }
+                                        else
+                                        {
+                                            <option value="@(layout.TypeName)">@(layout.Name)</option>
+                                        }
+                                    }
+                                </select>
+                            </td>
+                        </tr>
                     }
-                    <option value="<<">To Beginning</option>
-                    @if (_children != null && _children.Count > 0)
-                    {
-                        <option value="<">Before</option>
-                        <option value=">">After</option>
-                    }
-                    <option value=">>">To End</option>
-                </select>
-                @if (_children != null && _children.Count > 0 && (_insert == "<" || _insert == ">"))
-                {
-                    <select id="Move" class="form-control" @bind="@_childid">
-                        <option value="-1">&lt;Select Page&gt;</option>
-                        @foreach (Page page in _children)
-                        {
-                            <option value="@(page.PageId)">@(page.Name)</option>
-                        }
-                    </select>
-                }
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <Label for="Url" HelpText="Enter the url for the page">Url: </Label>
-            </td>
-            <td>
-                <input id="Url" class="form-control" @bind="@_url" />
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <Label For="Navigation" HelpText="Select whether the page has navigation bar">Navigation? </Label>
-            </td>
-            <td>
-                <select id="Navigation" class="form-control" @bind="@_isnavigation">
-                    <option value="True">Yes</option>
-                    <option value="False">No</option>
-                </select>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <Label For="Personalizable" HelpText="Do you want the page to be personalized by users">Personalizable? </Label>
-            </td>
-            <td>
-                <select id="Personalizable" class="form-control" @bind="@_ispersonalizable">
-                    <option value="True">Yes</option>
-                    <option value="False">No</option>
-                </select>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <Label For="Default-Mode" HelpText="Select the default mode you want for the page">Default Mode? </Label>
-            </td>
-            <td>
-                <select id="Default-Mode" class="form-control" @bind="@_mode">
-                    <option value="view">View Mode</option>
-                    <option value="edit">Edit Mode</option>
-                </select>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <Label For="Theme" HelpText="Select the theme you want for the page">Theme: </Label>
-            </td>
-            <td>
-                <select id="Theme" class="form-control" @onchange="(e => ThemeChanged(e))">
-                    <option value="">&lt;Select Theme&gt;</option>
-                    @foreach (KeyValuePair<string, string> item in _themes)
-                    {
-                        if (item.Key == _themetype)
-                        {
-                            <option value="@item.Key" selected>@item.Value</option>
-                        }
-                        else
-                        {
-                            <option value="@item.Key">@item.Value</option>
-                        }
-                    }
-                </select>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <Label For="Layout" HelpText="Select the layout for the page">Layout: </Label>
-            </td>
-            <td>
-                <select id="Layout" class="form-control" @bind="@_layouttype">
-                    <option value="">&lt;Select Layout&gt;</option>
-                    @foreach (KeyValuePair<string, string> panelayout in _panelayouts)
-                    {
-                        <option value="@panelayout.Key">@panelayout.Value</option>
-                    }
-                </select>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <Label For="Icon" HelpText="Enter the icon for the page">Icon: </Label>
-            </td>
-            <td>
-                <input id="Icon" class="form-control" @bind="@_icon" />
-            </td>
-        </tr>
-        <tr>
-            <td colspan="2" align="center">
-                <Label For="Permissions" HelpText="Select the permissions you want for the page">Permissions: </Label>
-                <PermissionGrid EntityName="@EntityNames.Page" Permissions="@_permissions" @ref="_permissionGrid" />
-            </td>
-        </tr>
-    </table>
-    <button type="button" class="btn btn-success" @onclick="SavePage">Save</button>
-    <NavLink class="btn btn-secondary" href="@NavigateUrl()">Cancel</NavLink>
-    <br />
-    <br />
-    <AuditInfo CreatedBy="@_createdby" CreatedOn="@_createdon" ModifiedBy="@_modifiedby" ModifiedOn="@_modifiedon" DeletedBy="@_deletedby" DeletedOn="@_deletedon"></AuditInfo>
-}
+                    <tr>
+                        <td>
+                            <Label For="defaultContainer" HelpText="Select the default container for the page">Default Container: </Label>
+                        </td>
+                        <td>
+                            <select id="defaultContainer" class="form-control" @bind="@_containertype">
+                                <option value="-">&lt;Inherit From Site&gt;</option>
+                                @foreach (var container in _containers)
+                                {
+                                    <option value="@container.TypeName">@container.Name</option>
+                                }
+                            </select>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <Label For="Icon" HelpText="Optionally provide an icon for this page which will be displayed in the site navigation">Icon: </Label>
+                        </td>
+                        <td>
+                            <input id="Icon" class="form-control" @bind="@_icon" />
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <Label For="Personalizable" HelpText="Select whether you would like users to be able to personalize this page with their own content">Personalizable? </Label>
+                        </td>
+                        <td>
+                            <select id="Personalizable" class="form-control" @bind="@_ispersonalizable">
+                                <option value="True">Yes</option>
+                                <option value="False">No</option>
+                            </select>
+                        </td>
+                    </tr>
+                </table>
+            </Section>
+            <br /><br />
+            <AuditInfo CreatedBy="@_createdby" CreatedOn="@_createdon" ModifiedBy="@_modifiedby" ModifiedOn="@_modifiedon" DeletedBy="@_deletedby" DeletedOn="@_deletedon"></AuditInfo>
+        }
+    </TabPanel>
+    <TabPanel Name="Permissions">
+        @if (_permissions != null)
+        {
+            <table class="table table-borderless">
+                <tr>
+                    <td>
+                        <PermissionGrid EntityName="@EntityNames.Page" Permissions="@_permissions" @ref="_permissionGrid" />
+                    </td>
+                </tr>
+            </table>
+        }
+    </TabPanel>
+</TabStrip>
+<button type="button" class="btn btn-success" @onclick="SavePage">Save</button>
+<NavLink class="btn btn-secondary" href="@NavigateUrl()">Cancel</NavLink>
 
 @code {
-    private Dictionary<string, string> _themes = new Dictionary<string, string>();
-    private Dictionary<string, string> _panelayouts = new Dictionary<string, string>();
     private List<Theme> _themeList;
+    private List<ThemeControl> _themes = new List<ThemeControl>();
+    private List<ThemeControl> _layouts = new List<ThemeControl>();
+    private List<ThemeControl> _containers = new List<ThemeControl>();
     private List<Page> _pageList;
     private int _pageId;
     private string _name;
@@ -197,11 +224,11 @@
     private string _isnavigation;
     private string _url;
     private string _ispersonalizable;
-    private string _mode;
-    private string _themetype;
-    private string _layouttype;
+    private string _themetype = "-";
+    private string _layouttype = "-";
+    private string _containertype = "-";
     private string _icon;
-    private string _permissions;
+    private string _permissions = null;
     private string _createdby;
     private DateTime _createdon;
     private string _modifiedby;
@@ -219,11 +246,11 @@
     {
         try
         {
-            _themeList = await ThemeService.GetThemesAsync();
             _pageList = PageState.Pages;
             _children = PageState.Pages.Where(item => item.ParentId == null).ToList();
 
-            _themes = ThemeService.GetThemeTypes(_themeList);
+            _themeList = await ThemeService.GetThemesAsync();
+            _themes = ThemeService.GetThemeControls(_themeList);
 
             _pageId = Int32.Parse(PageState.QueryString["id"]);
             var page = PageState.Pages.FirstOrDefault(item => item.PageId == _pageId);
@@ -251,10 +278,23 @@
                 _isnavigation = page.IsNavigation.ToString();
                 _url = page.Url;
                 _ispersonalizable = page.IsPersonalizable.ToString();
-                _mode = (page.EditMode) ? "edit" : "view";
                 _themetype = page.ThemeType;
-                _panelayouts = ThemeService.GetPaneLayoutTypes(_themeList, _themetype);
+                if (_themetype == PageState.Site.DefaultThemeType)
+                {
+                    _themetype = "-";
+                }
+                _layouts = ThemeService.GetLayoutControls(_themeList, page.ThemeType);
                 _layouttype = page.LayoutType;
+                if (_layouttype == PageState.Site.DefaultLayoutType)
+                {
+                    _layouttype = "-";
+                }
+                _containers = ThemeService.GetContainerControls(_themeList, page.ThemeType);
+                _containertype = page.DefaultContainerType;
+                if (string.IsNullOrEmpty(_containertype))
+                {
+                    _containertype = "-";
+                }
                 _icon = page.Icon;
                 _permissions = page.Permissions;
                 _createdby = page.CreatedBy;
@@ -277,13 +317,26 @@
         try
         {
             _parentid = (string)e.Value;
+            _children = new List<Page>();
             if (_parentid == "-1")
             {
-                _children = PageState.Pages.Where(item => item.ParentId == null).ToList();
+                foreach (Page p in PageState.Pages.Where(item => item.ParentId == null))
+                {
+                    if (UserSecurity.IsAuthorized(PageState.User, PermissionNames.View, p.Permissions))
+                    {
+                        _children.Add(p);
+                    }
+                }
             }
             else
             {
-                _children = PageState.Pages.Where(item => item.ParentId == int.Parse(_parentid)).ToList();
+                foreach (Page p in PageState.Pages.Where(item => item.ParentId == int.Parse(_parentid)))
+                {
+                    if (UserSecurity.IsAuthorized(PageState.User, PermissionNames.View, p.Permissions))
+                    {
+                        _children.Add(p);
+                    }
+                }
             }
             if (_parentid == _currentparentid)
             {
@@ -307,14 +360,18 @@
         try
         {
             _themetype = (string)e.Value;
-            if (_themetype != string.Empty)
+            if (_themetype != "-")
             {
-                _panelayouts = ThemeService.GetPaneLayoutTypes(_themeList, _themetype);
+                _layouts = ThemeService.GetLayoutControls(_themeList, _themetype);
+                _containers = ThemeService.GetContainerControls(_themeList, _themetype);
             }
             else
             {
-                _panelayouts = new Dictionary<string, string>();
+                _layouts = new List<ThemeControl>();
+                _containers = new List<ThemeControl>();
             }
+            _layouttype = "-";
+            _containertype = "-";
             StateHasChanged();
         }
         catch (Exception ex)
@@ -329,7 +386,7 @@
         Page page = null;
         try
         {
-            if (_name != string.Empty && !string.IsNullOrEmpty(_themetype) && (_panelayouts.Count == 0 || !string.IsNullOrEmpty(_layouttype)))
+            if (_name != string.Empty)
             {
                 page = PageState.Pages.FirstOrDefault(item => item.PageId == _pageId);
                 string currentPath = page.Path;
@@ -345,7 +402,7 @@
                 {
                     _path = _path.Substring(_path.LastIndexOf("/") + 1);
                 }
-                if (string.IsNullOrEmpty(_parentid))
+                if (string.IsNullOrEmpty(_parentid) || _parentid == "-1")
                 {
                     page.ParentId = null;
                     page.Path = Utilities.GetFriendlyUrl(_path);
@@ -363,6 +420,13 @@
                         page.Path = parent.Path + "/" + Utilities.GetFriendlyUrl(_path);
                     }
                 }
+
+                if (!PagePathIsUnique(page.Path, page.SiteId, page.PageId, _pageList))
+                {
+                    AddModuleMessage($"A page with path {_path} already exists for the selected parent page. The page path needs to be unique for the selected parent.", MessageType.Warning);
+                    return;
+                }
+
                 if (_insert != "=")
                 {
                     Page child;
@@ -386,20 +450,23 @@
                 }
                 page.IsNavigation = (_isnavigation == null || Boolean.Parse(_isnavigation));
                 page.Url = _url;
-                page.EditMode = (_mode == "edit");
-                page.ThemeType = _themetype;
-                page.LayoutType = _layouttype ?? string.Empty;
-                page.Icon = _icon ?? string.Empty;
-                page.Permissions = _permissionGrid.GetPermissions();
-
-                if (page.ThemeType == PageState.Site.DefaultThemeType)
+                page.ThemeType = (_themetype != "-") ? _themetype : string.Empty;
+                if (!string.IsNullOrEmpty(page.ThemeType) && page.ThemeType == PageState.Site.DefaultThemeType)
                 {
                     page.ThemeType = string.Empty;
                 }
-                if (page.LayoutType == PageState.Site.DefaultLayoutType)
+                page.LayoutType = (_layouttype != "-") ? _layouttype : string.Empty;
+                if (!string.IsNullOrEmpty(page.LayoutType) && page.LayoutType == PageState.Site.DefaultLayoutType)
                 {
                     page.LayoutType = string.Empty;
                 }
+                page.DefaultContainerType = (_containertype != "-") ? _containertype : string.Empty;
+                if (!string.IsNullOrEmpty(page.DefaultContainerType) && page.DefaultContainerType == PageState.Site.DefaultContainerType)
+                {
+                    page.DefaultContainerType = string.Empty;
+                }
+                page.Icon = _icon ?? string.Empty;
+                page.Permissions = _permissionGrid.GetPermissions();
                 page.IsPersonalizable = (_ispersonalizable != null && Boolean.Parse(_ispersonalizable));
                 page.UserId = null;
 
@@ -429,7 +496,7 @@
             }
             else
             {
-                AddModuleMessage("You Must Provide Page Name And Theme", MessageType.Warning);
+                AddModuleMessage("You Must Provide Page Name", MessageType.Warning);
             }
         }
         catch (Exception ex)
@@ -437,5 +504,10 @@
             await logger.LogError(ex, "Error Saving Page {Page} {Error}", page, ex.Message);
             AddModuleMessage("Error Saving Page", MessageType.Error);
         }
+    }
+
+    private static bool PagePathIsUnique(string pagePath, int siteId, int pageId, List<Page> existingPages)
+    {
+        return !existingPages.Any(page => page.SiteId == siteId && page.Path == pagePath && page.PageId != pageId);
     }
 }

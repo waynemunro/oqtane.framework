@@ -10,12 +10,13 @@ using Microsoft.AspNetCore.Hosting;
 using Oqtane.Enums;
 using Oqtane.Infrastructure;
 using Oqtane.Repository;
+using System.Text.Json;
 
 // ReSharper disable StringIndexOfIsCultureSpecific.1
 
 namespace Oqtane.Controllers
 {
-    [Route("{site}/api/[controller]")]
+    [Route(ControllerRoutes.Default)]
     public class ThemeController : Controller
     {
         private readonly IThemeRepository _themes;
@@ -33,63 +34,53 @@ namespace Oqtane.Controllers
 
         // GET: api/<controller>
         [HttpGet]
-        [Authorize(Roles = Constants.RegisteredRole)]
+        [Authorize(Roles = RoleNames.Registered)]
         public IEnumerable<Theme> Get()
         {
             return _themes.GetThemes();
         }
 
         [HttpGet("install")]
-        [Authorize(Roles = Constants.HostRole)]
+        [Authorize(Roles = RoleNames.Host)]
         public void InstallThemes()
         {
-            _installationManager.InstallPackages("Themes", true);
             _logger.Log(LogLevel.Information, this, LogFunction.Create, "Themes Installed");
+            _installationManager.InstallPackages("Themes", true);
         }
 
         // DELETE api/<controller>/xxx
         [HttpDelete("{themename}")]
-        [Authorize(Roles = Constants.HostRole)]
+        [Authorize(Roles = RoleNames.Host)]
         public void Delete(string themename)
         {
             List<Theme> themes = _themes.GetThemes().ToList();
             Theme theme = themes.Where(item => item.ThemeName == themename).FirstOrDefault();
-            if (theme != null)
+            if (theme != null && Utilities.GetAssemblyName(theme.ThemeName) != "Oqtane.Client")
             {
-                themename = theme.ThemeName.Substring(0, theme.ThemeName.IndexOf(","));
+                // use assets.json to clean up file resources
+                string assetfilepath = Path.Combine(_environment.WebRootPath, "Themes", Utilities.GetTypeName(theme.ThemeName), "assets.json");
+                if (System.IO.File.Exists(assetfilepath))
+                {
+                    List<string> assets = JsonSerializer.Deserialize<List<string>>(System.IO.File.ReadAllText(assetfilepath));
+                    foreach (string asset in assets)
+                    {
+                        if (System.IO.File.Exists(asset))
+                        {
+                            System.IO.File.Delete(asset);
+                        }
+                    }
+                    _logger.Log(LogLevel.Information, this, LogFunction.Delete, "Theme Assets Removed For {ThemeName}", theme.ThemeName);
+                }
 
-                string folder = Path.Combine(_environment.WebRootPath, "Themes\\" + themename);
+                // clean up theme static resource folder
+                string folder = Path.Combine(_environment.WebRootPath, "Themes" , Utilities.GetTypeName(theme.ThemeName));
                 if (Directory.Exists(folder))
                 {
                     Directory.Delete(folder, true);
+                    _logger.Log(LogLevel.Information, this, LogFunction.Delete, "Theme Resource Folder Removed For {ThemeName}", theme.ThemeName);
                 }
-
-                string binfolder = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location);
-                foreach (string file in Directory.EnumerateFiles(binfolder, themename + "*.dll"))
-                {
-                    System.IO.File.Delete(file);
-                }
-                _logger.Log(LogLevel.Information, this, LogFunction.Delete, "Theme Deleted {ThemeName}", themename);
 
                 _installationManager.RestartApplication();
-            }
-        }
-
-        // GET api/<controller>/load/assembyname
-        [HttpGet("load/{assemblyname}")]
-        public IActionResult Load(string assemblyname)
-        {
-            if (Path.GetExtension(assemblyname).ToLower() == ".dll")
-            {
-                string binfolder = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location);
-                byte[] file = System.IO.File.ReadAllBytes(Path.Combine(binfolder, assemblyname));
-                return File(file, "application/octet-stream", assemblyname);
-            }
-            else
-            {
-                _logger.Log(LogLevel.Error, this, LogFunction.Read, "User Not Authorized To Download Assembly {Assembly}", assemblyname);
-                HttpContext.Response.StatusCode = 401;
-                return null;
             }
         }
 

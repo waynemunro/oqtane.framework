@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -52,9 +51,9 @@ namespace Oqtane.Repository
             Module module = _db.Module.Find(moduleId);
             if (module != null)
             {
-                List<Permission> permissions = _permissions.GetPermissions("Module", module.ModuleId).ToList();
-                module.Permissions = _permissions.EncodePermissions(permissions);
+                module.Permissions = _permissions.GetPermissionString("Module", module.ModuleId);
             }
+
             return module;
         }
 
@@ -75,7 +74,7 @@ namespace Oqtane.Repository
                 if (module != null)
                 {
                     List<ModuleDefinition> moduledefinitions = _moduleDefinitions.GetModuleDefinitions(module.SiteId).ToList();
-                    ModuleDefinition moduledefinition = moduledefinitions.Where(item => item.ModuleDefinitionName == module.ModuleDefinitionName).FirstOrDefault();
+                    ModuleDefinition moduledefinition = moduledefinitions.FirstOrDefault(item => item.ModuleDefinitionName == module.ModuleDefinitionName);
                     if (moduledefinition != null)
                     {
                         ModuleContent modulecontent = new ModuleContent();
@@ -83,23 +82,23 @@ namespace Oqtane.Repository
                         modulecontent.Version = moduledefinition.Version;
                         modulecontent.Content = "";
 
-                        if (moduledefinition.ServerAssemblyName != "")
+                        if (moduledefinition.ServerManagerType != "")
                         {
-                            Assembly assembly = AppDomain.CurrentDomain.GetAssemblies()
-                                .Where(item => item.FullName.StartsWith(moduledefinition.ServerAssemblyName)).FirstOrDefault();
-                            if (assembly != null)
+                            Type moduletype = Type.GetType(moduledefinition.ServerManagerType);
+                            if (moduletype != null && moduletype.GetInterface("IPortable") != null)
                             {
-                                Type moduletype = assembly.GetTypes()
-                                    .Where(item => item.Namespace != null)
-                                    .Where(item => item.Namespace.StartsWith(moduledefinition.ModuleDefinitionName.Substring(0, moduledefinition.ModuleDefinitionName.IndexOf(","))))
-                                    .Where(item => item.GetInterfaces().Contains(typeof(IPortable))).FirstOrDefault();
-                                if (moduletype != null)
+                                try
                                 {
                                     var moduleobject = ActivatorUtilities.CreateInstance(_serviceProvider, moduletype);
                                     modulecontent.Content = ((IPortable)moduleobject).ExportModule(module);
                                 }
+                                catch
+                                {
+                                    // error in IPortable implementation
+                                }
                             }
                         }
+
                         content = JsonSerializer.Serialize(modulecontent);
                     }
                 }
@@ -108,6 +107,7 @@ namespace Oqtane.Repository
             {
                 // error occurred during export
             }
+
             return content;
         }
 
@@ -123,24 +123,23 @@ namespace Oqtane.Repository
                     ModuleDefinition moduledefinition = moduledefinitions.Where(item => item.ModuleDefinitionName == module.ModuleDefinitionName).FirstOrDefault();
                     if (moduledefinition != null)
                     {
-                        ModuleContent modulecontent = JsonSerializer.Deserialize<ModuleContent>(content);
+                        ModuleContent modulecontent = JsonSerializer.Deserialize<ModuleContent>(content.Replace("\n", ""));
                         if (modulecontent.ModuleDefinitionName == moduledefinition.ModuleDefinitionName)
                         {
-                            if (moduledefinition.ServerAssemblyName != "")
+                            if (moduledefinition.ServerManagerType != "")
                             {
-                                Assembly assembly = AppDomain.CurrentDomain.GetAssemblies()
-                                    .Where(item => item.FullName.StartsWith(moduledefinition.ServerAssemblyName)).FirstOrDefault();
-                                if (assembly != null)
+                                Type moduletype = Type.GetType(moduledefinition.ServerManagerType);
+                                if (moduletype != null && moduletype.GetInterface("IPortable") != null)
                                 {
-                                    Type moduletype = assembly.GetTypes()
-                                        .Where(item => item.Namespace != null)
-                                        .Where(item => item.Namespace.StartsWith(moduledefinition.ModuleDefinitionName.Substring(0, moduledefinition.ModuleDefinitionName.IndexOf(","))))
-                                        .Where(item => item.GetInterfaces().Contains(typeof(IPortable))).FirstOrDefault();
-                                    if (moduletype != null)
+                                    try
                                     {
                                         var moduleobject = ActivatorUtilities.CreateInstance(_serviceProvider, moduletype);
                                         ((IPortable)moduleobject).ImportModule(module, modulecontent.Content, modulecontent.Version);
                                         success = true;
+                                    }
+                                    catch 
+                                    {
+                                        // error in IPortable implementation
                                     }
                                 }
                             }
@@ -148,12 +147,13 @@ namespace Oqtane.Repository
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
                 // error occurred during import
+                string error = ex.Message;
             }
+
             return success;
         }
-
     }
 }

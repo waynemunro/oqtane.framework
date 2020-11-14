@@ -1,4 +1,6 @@
-window.interop = {
+var Oqtane = Oqtane || {};
+
+Oqtane.Interop = {
     setCookie: function (name, value, days) {
         var d = new Date();
         d.setTime(d.getTime() + (days * 24 * 60 * 60 * 1000));
@@ -25,9 +27,9 @@ window.interop = {
             document.title = title;
         }
     },
-    includeMeta: function (id, attribute, name, content) {
+    includeMeta: function (id, attribute, name, content, key) {
         var meta;
-        if (id !== "") {
+        if (id !== "" && key === "id") {
             meta = document.getElementById(id);
         }
         else {
@@ -43,18 +45,21 @@ window.interop = {
             document.head.appendChild(meta);
         }
         else {
+            if (id !== "") {
+                meta.setAttribute("id", id);
+            }
             if (meta.content !== content) {
                 meta.setAttribute("content", content);
             }
         }
     },
-    includeLink: function (id, rel, url, type) {
+    includeLink: function (id, rel, href, type, integrity, crossorigin, key) {
         var link;
-        if (id !== "") {
+        if (id !== "" && key === "id") {
             link = document.getElementById(id);
         }
         else {
-            link = document.querySelector("link[href=\"" + CSS.escape(url) + "\"]");
+            link = document.querySelector("link[href=\"" + CSS.escape(href) + "\"]");
         }
         if (link === null) {
             link = document.createElement("link");
@@ -62,28 +67,65 @@ window.interop = {
                 link.id = id;
             }
             link.rel = rel;
-            link.href = url;
             if (type !== "") {
                 link.type = type;
+            }
+            link.href = href;
+            if (integrity !== "") {
+                link.integrity = integrity;
+            }
+            if (crossorigin !== "") {
+                link.crossOrigin = crossorigin;
             }
             document.head.appendChild(link);
         }
         else {
+            if (link.id !== id) {
+                link.setAttribute('id', id);
+            }
             if (link.rel !== rel) {
                 link.setAttribute('rel', rel);
             }
-            if (link.href !== url) {
-                link.setAttribute('href', url);
+            if (type !== "") {
+                if (link.type !== type) {
+                    link.setAttribute('type', type);
+                }
+            } else {
+                link.removeAttribute('type');
             }
-            if (type !== "" && link.type !== type) {
-                link.setAttribute('type', type);
+            if (link.href !== this.getAbsoluteUrl(href)) {
+                link.removeAttribute('integrity');
+                link.removeAttribute('crossorigin');
+                link.setAttribute('href', href);
+            }
+            if (integrity !== "") {
+                if (link.integrity !== integrity) {
+                    link.setAttribute('integrity', integrity);
+                }
+            } else {
+                link.removeAttribute('integrity');
+            }
+            if (crossorigin !== "") {
+                if (link.crossOrigin !== crossorigin) {
+                    link.setAttribute('crossorigin', crossorigin);
+                }
+            } else {
+                link.removeAttribute('crossorigin');
             }
         }
     },
-    includeScript: function (id, src, content, location) {
+    includeLinks: function (links) {
+        for (let i = 0; i < links.length; i++) {
+            this.includeLink(links[i].id, links[i].rel, links[i].href, links[i].type, links[i].integrity, links[i].crossorigin, links[i].key);
+        }
+    },
+    includeScript: function (id, src, integrity, crossorigin, content, location, key) {
         var script;
-        if (id !== "") {
+        if (id !== "" && key === "id") {
             script = document.getElementById(id);
+        }
+        else {
+            script = document.querySelector("script[src=\"" + CSS.escape(src) + "\"]");
         }
         if (script === null) {
             script = document.createElement("script");
@@ -92,27 +134,130 @@ window.interop = {
             }
             if (src !== "") {
                 script.src = src;
+                if (integrity !== "") {
+                    script.integrity = integrity;
+                }
+                if (crossorigin !== "") {
+                    script.crossOrigin = crossorigin;
+                }
             }
             else {
                 script.innerHTML = content;
             }
-            if (location === 'head') {
-                document.head.appendChild(script);
-            }
-            if (location === 'body') {
-                document.body.appendChild(script);
-            }
+            script.async = false;
+            this.addScript(script, location)
+                .then(() => {
+                    console.log(src + ' loaded');
+                })
+                .catch(() => {
+                    console.error(src + ' failed');
+                });
         }
         else {
+            if (script.id !== id) {
+                script.setAttribute('id', id);
+            }
             if (src !== "") {
-                if (script.src !== src) {
+                if (script.src !== this.getAbsoluteUrl(src)) {
+                    script.removeAttribute('integrity');
+                    script.removeAttribute('crossorigin');
                     script.src = src;
+                }
+                if (integrity !== "") {
+                    if (script.integrity !== integrity) {
+                        script.setAttribute('integrity', integrity);
+                    }
+                } else {
+                    script.removeAttribute('integrity');
+                }
+                if (crossorigin !== "") {
+                    if (script.crossOrigin !== crossorigin) {
+                        script.setAttribute('crossorigin', crossorigin);
+                    }
+                } else {
+                    script.removeAttribute('crossorigin');
                 }
             }
             else {
                 if (script.innerHTML !== content) {
                     script.innerHTML = content;
                 }
+            }
+        }
+    },
+    addScript: function (script, location) {
+        if (location === 'head') {
+            document.head.appendChild(script);
+        }
+        if (location === 'body') {
+            document.body.appendChild(script);
+        }
+
+        return new Promise((res, rej) => {
+            script.onload = res();
+            script.onerror = rej();
+        });
+    },
+    includeScripts: async function (scripts) {
+        const bundles = [];
+        for (let s = 0; s < scripts.length; s++) {
+            if (scripts[s].bundle === '') {
+                scripts[s].bundle = scripts[s].href;
+            }
+            if (!bundles.includes(scripts[s].bundle)) {
+                bundles.push(scripts[s].bundle);
+            }
+        }
+        const promises = [];
+        for (let b = 0; b < bundles.length; b++) {
+            const urls = [];
+            for (let s = 0; s < scripts.length; s++) {
+                if (scripts[s].bundle === bundles[b]) {
+                    urls.push(scripts[s].href);
+                }
+            }
+            promises.push(new Promise((resolve, reject) => {
+                if (loadjs.isDefined(bundles[b])) {
+                    resolve(true);
+                }
+                else {
+                    loadjs(urls, bundles[b], {
+                        async: false,
+                        returnPromise: true,
+                        before: function (path, element) {
+                            for (let s = 0; s < scripts.length; s++) {
+                                if (path === scripts[s].href && scripts[s].integrity !== '') {
+                                    element.integrity = scripts[s].integrity;
+                                }
+                                if (path === scripts[s].href && scripts[s].crossorigin !== '') {
+                                    element.crossOrigin = scripts[s].crossorigin;
+                                }
+                            }
+                        }
+                    })
+                    .then(function () { resolve(true) })
+                    .catch(function (pathsNotFound) { reject(false) });
+                }
+            }));
+        }
+        if (promises.length !== 0) {
+            await Promise.all(promises);
+        }
+    },
+    getAbsoluteUrl: function (url) {
+        var a = document.createElement('a');
+        getAbsoluteUrl = function (url) {
+            a.href = url;
+            return a.href;
+        }
+        return getAbsoluteUrl(url);
+    },
+    removeElementsById: function (prefix, first, last) {
+        var elements = document.querySelectorAll('[id^=' + prefix + ']');
+        for (var i = elements.length - 1; i >= 0; i--) {
+            var element = elements[i];
+            if (element.id.startsWith(prefix) && (first === '' || element.id >= first) && (last === '' || element.id <= last)) {
+                element.parentNode.removeChild(element);
             }
         }
     },
@@ -184,7 +329,7 @@ window.interop = {
 
             while (Chunk = FileChunk.shift()) {
                 PartCount++;
-                var FileName = file.name + ".part_" + PartCount + "_" + TotalParts;
+                var FileName = file.name + ".part_" + PartCount.toString().padStart(3, '0') + "_" + TotalParts.toString().padStart(3, '0');
 
                 var data = new FormData();
                 data.append('folder', folder);
@@ -208,52 +353,14 @@ window.interop = {
             }
         }
     },
-    createQuill: function (
-        quillElement, toolBar, readOnly,
-        placeholder, theme, debugLevel) {
-
-        Quill.register('modules/blotFormatter', QuillBlotFormatter.default);
-
-        var options = {
-            debug: debugLevel,
-            modules: {
-                toolbar: toolBar,
-                blotFormatter: {}
-            },
-            placeholder: placeholder,
-            readOnly: readOnly,
-            theme: theme
-        };
-
-        new Quill(quillElement, options);
+    refreshBrowser: function (reload, wait) {
+        setInterval(function () {
+            window.location.reload(reload);
+        }, wait * 1000);
     },
-    getQuillContent: function (editorElement) {
-        return JSON.stringify(editorElement.__quill.getContents());
-    },
-    getQuillText: function (editorElement) {
-        return editorElement.__quill.getText();
-    },
-    getQuillHTML: function (editorElement) {
-        return editorElement.__quill.root.innerHTML;
-    },
-    loadQuillContent: function (editorElement, editorContent) {
-        return editorElement.__quill.root.innerHTML = editorContent;
-    },
-    enableQuillEditor: function (editorElement, mode) {
-        editorElement.__quill.enable(mode);
-    },
-    insertQuillImage: function (quillElement, imageURL) {
-        var Delta = Quill.import('delta');
-        editorIndex = 0;
-
-        if (quillElement.__quill.getSelection() !== null) {
-            editorIndex = quillElement.__quill.getSelection().index;
-        }
-
-        return quillElement.__quill.updateContents(
-            new Delta()
-                .retain(editorIndex)
-                .insert({ image: imageURL },
-                    { alt: imageURL }));
+    redirectBrowser: function (url, wait) {
+        setInterval(function () {
+            window.location.href = url;
+        }, wait * 1000);
     }
 };

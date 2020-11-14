@@ -1,18 +1,24 @@
-﻿@namespace Oqtane.UI
+@using Microsoft.AspNetCore.Components.Rendering
+@namespace Oqtane.UI
 @inject IUserService UserService
 @inject IModuleService ModuleService
 @inject IModuleDefinitionService ModuleDefinitionService
 
-<div class="@_paneadminborder">
-    @if (_panetitle != "")
-    {
+@if (_useadminborder)
+{
+    <div class="@_paneadminborder">
         @((MarkupString)_panetitle)
-    }
+        @DynamicComponent
+    </div>
+}
+else
+{
     @DynamicComponent
-</div>
+}
 
 @code {
-    private string _paneadminborder = "";
+    private bool _useadminborder = false;
+    private string _paneadminborder = "container";
     private string _panetitle = "";
 
     [CascadingParameter]
@@ -25,25 +31,26 @@
 
     protected override void OnParametersSet()
     {
-        if (PageState.EditMode && !PageState.Page.EditMode && UserSecurity.IsAuthorized(PageState.User,PermissionNames.Edit, PageState.Page.Permissions) && Name != Constants.AdminPane)
+        if (PageState.EditMode && UserSecurity.IsAuthorized(PageState.User, PermissionNames.Edit, PageState.Page.Permissions) && Name != PaneNames.Admin)
         {
+            _useadminborder = true;
             _paneadminborder = "app-pane-admin-border";
             _panetitle = "<div class=\"app-pane-admin-title\">" + Name + " Pane</div>";
         }
         else
         {
-            _paneadminborder = "";
+            _paneadminborder = "container";
             _panetitle = "";
         }
 
         DynamicComponent = builder =>
         {
-            if (PageState.ModuleId != -1 && PageState.Action != "")
+            if (PageState.ModuleId != -1 && PageState.Action != Constants.DefaultAction)
             {
-                if (Name.ToLower() == Constants.AdminPane.ToLower())
+                if (Name.ToLower() == PaneNames.Admin.ToLower())
                 {
                     Module module = PageState.Modules.FirstOrDefault(item => item.ModuleId == PageState.ModuleId);
-                    if (module != null)
+                    if (module != null && !module.IsDeleted)
                     {
                         var typename = module.ModuleType;
                         // check for core module actions component
@@ -51,7 +58,7 @@
                         {
                             typename = Constants.DefaultModuleActionsTemplate.Replace(Constants.ActionToken, PageState.Action);
                         }
-                        
+
                         var moduleType = Type.GetType(typename);
                         if (moduleType != null)
                         {
@@ -74,24 +81,17 @@
                                         authorized = UserSecurity.IsAuthorized(PageState.User, PermissionNames.Edit, module.Permissions);
                                         break;
                                     case SecurityAccessLevel.Admin:
-                                        authorized = UserSecurity.IsAuthorized(PageState.User, Constants.AdminRole);
+                                        authorized = UserSecurity.IsAuthorized(PageState.User, RoleNames.Admin);
                                         break;
                                     case SecurityAccessLevel.Host:
-                                        authorized = UserSecurity.IsAuthorized(PageState.User, Constants.HostRole);
+                                        authorized = UserSecurity.IsAuthorized(PageState.User, RoleNames.Host);
                                         break;
                                 }
                             }
 
                             if (authorized)
                             {
-                                if (!Constants.DefaultModuleActions.Contains(PageState.Action) && module.ControlTitle != "")
-                                {
-                                    module.Title = module.ControlTitle;
-                                }
-                                
-                                builder.OpenComponent(0, Type.GetType(Constants.ContainerComponent));
-                                builder.AddAttribute(1, "Module", module);
-                                builder.CloseComponent();
+                                CreateComponent(builder, module);
                             }
                         }
                         else
@@ -106,14 +106,12 @@
                 if (PageState.ModuleId != -1)
                 {
                     Module module = PageState.Modules.FirstOrDefault(item => item.ModuleId == PageState.ModuleId);
-                    if (module != null && module.Pane.ToLower() == Name.ToLower())
+                    if (module != null && module.Pane.ToLower() == Name.ToLower() && !module.IsDeleted)
                     {
                         // check if user is authorized to view module
                         if (UserSecurity.IsAuthorized(PageState.User, PermissionNames.View, module.Permissions))
                         {
-                            builder.OpenComponent(0, Type.GetType(Constants.ContainerComponent));
-                            builder.AddAttribute(1, "Module", module);
-                            builder.CloseComponent();
+                            CreateComponent(builder, module);
                         }
                     }
                 }
@@ -124,14 +122,19 @@
                         // check if user is authorized to view module
                         if (UserSecurity.IsAuthorized(PageState.User, PermissionNames.View, module.Permissions))
                         {
-                            builder.OpenComponent(0, Type.GetType(Constants.ContainerComponent));
-                            builder.AddAttribute(1, "Module", module);
-                            builder.SetKey(module.PageModuleId);
-                            builder.CloseComponent();
+                            CreateComponent(builder, module);
                         }
                     }
                 }
             }
         };
+    }
+
+    private void CreateComponent(RenderTreeBuilder builder, Module module)
+    {
+        builder.OpenComponent(0, Type.GetType(Constants.ContainerComponent));
+        builder.AddAttribute(1, "Module", module);
+        builder.SetKey(module.PageModuleId);
+        builder.CloseComponent();
     }
 }

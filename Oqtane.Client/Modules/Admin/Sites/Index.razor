@@ -14,8 +14,8 @@ else
 
     <Pager Items="@_sites">
         <Header>
-            <th>&nbsp;</th>
-            <th>&nbsp;</th>
+            <th style="width: 1px;">&nbsp;</th>
+            <th style="width: 1px;">&nbsp;</th>
             <th>Name</th>
         </Header>
         <Row>
@@ -54,7 +54,8 @@ else
         {
             if (alias.SiteId != PageState.Site.SiteId || alias.TenantId != PageState.Site.TenantId)
             {
-                await SiteService.DeleteSiteAsync(alias.SiteId, alias);
+                SiteService.SetAlias(alias);
+                await SiteService.DeleteSiteAsync(alias.SiteId);
                 await Log(alias, LogLevel.Information, "", null, "Site Deleted {SiteId}", alias.SiteId);
                 
                 var aliases = await AliasService.GetAliasesAsync();

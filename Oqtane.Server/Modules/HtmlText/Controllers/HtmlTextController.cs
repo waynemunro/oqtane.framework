@@ -8,29 +8,23 @@ using System;
 using System.Collections.Generic;
 using Oqtane.Enums;
 using Oqtane.Infrastructure;
+using Oqtane.Controllers;
 
 namespace Oqtane.Modules.HtmlText.Controllers
 {
-    [Route("{site}/api/[controller]")]
-    public class HtmlTextController : Controller
+    [Route(ControllerRoutes.Default)]
+    public class HtmlTextController : ModuleControllerBase
     {
         private readonly IHtmlTextRepository _htmlText;
-        private readonly ILogManager _logger;
-        private int _entityId = -1; // passed as a querystring parameter for authorization and used for validation
 
-        public HtmlTextController(IHtmlTextRepository htmlText, ILogManager logger, IHttpContextAccessor httpContextAccessor)
+        public HtmlTextController(IHtmlTextRepository htmlText, ILogManager logger, IHttpContextAccessor accessor) : base(logger, accessor)
         {
             _htmlText = htmlText;
-            _logger = logger;
-            if (httpContextAccessor.HttpContext.Request.Query.ContainsKey("entityid"))
-            {
-                _entityId = int.Parse(httpContextAccessor.HttpContext.Request.Query["entityid"]);
-            }
         }
 
         // GET api/<controller>/5
         [HttpGet("{id}")]
-        [Authorize(Policy = "ViewModule")]
+        [Authorize(Policy = PolicyNames.ViewModule)]
         public List<HtmlTextInfo> Get(int id)
         {
             var list = new List<HtmlTextInfo>();
@@ -53,7 +47,7 @@ namespace Oqtane.Modules.HtmlText.Controllers
 
         // POST api/<controller>
         [HttpPost]
-        [Authorize(Policy = "EditModule")]
+        [Authorize(Policy = PolicyNames.EditModule)]
         public HtmlTextInfo Post([FromBody] HtmlTextInfo htmlText)
         {
             try
@@ -74,7 +68,7 @@ namespace Oqtane.Modules.HtmlText.Controllers
 
         // PUT api/<controller>/5
         [HttpPut("{id}")]
-        [Authorize(Policy = "EditModule")]
+        [Authorize(Policy = PolicyNames.EditModule)]
         public HtmlTextInfo Put(int id, [FromBody] HtmlTextInfo htmlText)
         {
             try
@@ -95,7 +89,7 @@ namespace Oqtane.Modules.HtmlText.Controllers
 
         // DELETE api/<controller>/5
         [HttpDelete("{id}")]
-        [Authorize(Policy = "EditModule")]
+        [Authorize(Policy = PolicyNames.EditModule)]
         public void Delete(int id)
         {
             try

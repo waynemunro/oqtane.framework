@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Net.Http;
+using System.Net.Http.Json;
 using System.Security.Claims;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -28,8 +30,8 @@ namespace Oqtane.Providers
         {
             // get HttpClient lazily from IServiceProvider as you cannot use standard dependency injection due to the AuthenticationStateProvider being initialized prior to NavigationManager ( https://github.com/aspnet/AspNetCore/issues/11867 )
             var http = _serviceProvider.GetRequiredService<HttpClient>();
-            string apiurl = ServiceBase.CreateApiUrl(_siteState.Alias, _navigationManager.Uri, "User") + "/authenticate";
-            User user = await http.GetJsonAsync<User>(apiurl);
+            string apiurl = "/~/api/User/authenticate";
+            User user = await http.GetFromJsonAsync<User>(apiurl);
 
             ClaimsIdentity identity = new ClaimsIdentity();
             if (user.IsAuthenticated)
