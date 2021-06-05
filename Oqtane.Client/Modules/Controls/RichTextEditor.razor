@@ -1,25 +1,29 @@
-﻿@namespace Oqtane.Modules.Controls
+@namespace Oqtane.Modules.Controls
 @inherits ModuleControlBase
+@inject IStringLocalizer<RichTextEditor> Localizer 
 
 <div class="row" style="margin-bottom: 50px;">
     <div class="col">
         <TabStrip>
             <TabPanel Name="Rich" Heading="Rich Text Editor">
-                @if (_filemanagervisible)
+                @if (AllowFileManagement)
                 {
-                    <FileManager @ref="_fileManager" Filter="@Constants.ImageFiles" />
-                    <ModuleMessage Message="@_message" Type="MessageType.Warning"></ModuleMessage>
-                    <br />
-                }
-                <div class="row justify-content-center" style="margin-bottom: 20px;">
-                    <button type="button" class="btn btn-secondary" @onclick="RefreshRichText">Synchronize Content</button>&nbsp;&nbsp;
-                    <button type="button" class="btn btn-primary" @onclick="InsertImage">Insert Image</button>
                     @if (_filemanagervisible)
                     {
-                        @((MarkupString)"&nbsp;&nbsp;")
-                        <button type="button" class="btn btn-secondary" @onclick="CloseFileManager">Close</button>
+                        <FileManager @ref="_fileManager" Filter="@Constants.ImageFiles" />
+                        <ModuleMessage Message="@_message" Type="MessageType.Warning"></ModuleMessage>
+                        <br />
                     }
-                </div>
+                    <div class="row justify-content-center" style="margin-bottom: 20px;">
+                        <button type="button" class="btn btn-secondary" @onclick="RefreshRichText">@Localizer["Synchronize Content"]</button>&nbsp;&nbsp;
+                        <button type="button" class="btn btn-primary" @onclick="InsertImage">@Localizer["Insert Image"]</button>
+                        @if (_filemanagervisible)
+                        {
+                            @((MarkupString)"&nbsp;&nbsp;")
+                            <button type="button" class="btn btn-secondary" @onclick="CloseFileManager">@Localizer["Close"]</button>
+                        }
+                    </div>
+                }
                 <div class="row">
                     <div class="col">
                         <div @ref="@_toolBar">
@@ -61,9 +65,9 @@
                     </div>
                 </div>
             </TabPanel>
-            <TabPanel Name="Raw" Heading="Raw HTML Editor">
+            <TabPanel Name="Raw" Heading="Raw HTML Editor" ResourceKey="HtmlEditor">
                 <div class="row justify-content-center" style="margin-bottom: 20px;">
-                    <button type="button" class="btn btn-secondary" @onclick="RefreshRawHtml">Synchronize Content</button>
+                    <button type="button" class="btn btn-secondary" @onclick="RefreshRawHtml">@Localizer["Synchronize Content"]</button>
                 </div>
                 @if (ReadOnly)
                 {
@@ -105,6 +109,9 @@
 
     [Parameter]
     public string DebugLevel { get; set; } = "info";
+
+    [Parameter]
+    public bool AllowFileManagement { get; set; } = true;
 
     public override List<Resource> Resources => new List<Resource>()
     {
@@ -184,16 +191,16 @@
         _message = string.Empty;
         if (_filemanagervisible)
         {
-            var fileid = _fileManager.GetFileId();
-            if (fileid != -1)
+            var file = _fileManager.GetFile();
+            if (file != null)
             {
                 var interop = new RichTextEditorInterop(JSRuntime);
-                await interop.InsertImage(_editorElement, ContentUrl(fileid));
+                await interop.InsertImage(_editorElement, file.Url, file.Name);
                 _filemanagervisible = false;
             }
             else
             {
-                _message = "You Must Select An Image To Insert";
+                _message = Localizer["You Must Select An Image To Insert"];
             }
         }
         else

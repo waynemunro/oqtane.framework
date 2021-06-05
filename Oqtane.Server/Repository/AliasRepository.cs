@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.EntityFrameworkCore;
@@ -46,6 +46,38 @@ namespace Oqtane.Repository
         public Alias GetAlias(int aliasId)
         {
             return _db.Alias.Find(aliasId);
+        }
+
+        public Alias GetAlias(string name)
+        {
+            Alias alias = null;
+
+            List<Alias> aliases = GetAliases().ToList();
+            var segments = name.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+
+            // iterate segments to find keywords
+            int start = segments.Length;
+            for (int i = 0; i < segments.Length; i++)
+            {
+                if (segments[i] == "api" || segments[i] == "pages" || segments[i] == "*")
+                {
+                    start = i;
+                    break;
+                }
+            }
+
+            // iterate segments in reverse order to find alias match
+            for (int i = start; i > 0; i--)
+            {
+                alias = aliases.Find(item => item.Name.Equals(string.Join("/", segments, 0, i), StringComparison.OrdinalIgnoreCase));
+                if (alias != null)
+                {
+                    break; // found a matching alias
+                }
+            }
+
+            // return fallback alias if none found
+            return alias ?? aliases.Find(item => item.Name.Equals("*"));
         }
 
         public void DeleteAlias(int aliasId)

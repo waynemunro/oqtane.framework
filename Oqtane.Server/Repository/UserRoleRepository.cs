@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Linq;
 using Microsoft.EntityFrameworkCore;
 using Oqtane.Models;
@@ -27,7 +27,7 @@ namespace Oqtane.Repository
             return _db.UserRole.Where(item => item.UserId == userId)
                 .Include(item => item.Role) // eager load roles
                 .Include(item => item.User) // eager load users
-                .Where(item => item.Role.SiteId == siteId || item.Role.SiteId == null);
+                .Where(item => item.Role.SiteId == siteId || item.Role.SiteId == null || siteId == -1);
         }
 
         public UserRole AddUserRole(UserRole userRole)
@@ -56,6 +56,15 @@ namespace Oqtane.Repository
         {
             UserRole userRole = _db.UserRole.Find(userRoleId);
             _db.UserRole.Remove(userRole);
+            _db.SaveChanges();
+        }
+
+        public void DeleteUserRoles(int userId)
+        {
+            foreach (UserRole userRole in _db.UserRole.Where(item => item.Role.SiteId != null))
+            {
+                _db.UserRole.Remove(userRole);
+            }
             _db.SaveChanges();
         }
     }

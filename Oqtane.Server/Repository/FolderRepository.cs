@@ -1,7 +1,9 @@
 using System.Collections.Generic;
 using System.Linq;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Oqtane.Extensions;
+using Oqtane.Infrastructure;
 using Oqtane.Models;
 using Oqtane.Shared;
 
@@ -11,11 +13,15 @@ namespace Oqtane.Repository
     {
         private TenantDBContext _db;
         private readonly IPermissionRepository _permissions;
+        private readonly IWebHostEnvironment _environment;
+        private readonly ITenantManager _tenants;
 
-        public FolderRepository(TenantDBContext context, IPermissionRepository permissions)
+        public FolderRepository(TenantDBContext context, IPermissionRepository permissions,IWebHostEnvironment environment, ITenantManager tenants)
         {
             _db = context;
             _permissions = permissions;
+            _environment = environment;
+            _tenants = tenants;
         }
 
         public IEnumerable<Folder> GetFolders(int siteId)
@@ -85,5 +91,27 @@ namespace Oqtane.Repository
             _db.Folder.Remove(folder);
             _db.SaveChanges();
         }
+
+        public string GetFolderPath(int folderId)
+        {
+            Folder folder = _db.Folder.Find(folderId);
+            return GetFolderPath(folder);
+        }
+
+        public string GetFolderPath(Folder folder)
+        {
+            string path = "";
+            switch (folder.Type)
+            {
+                case FolderTypes.Private:
+                    path = Utilities.PathCombine(_environment.ContentRootPath, "Content", "Tenants", _tenants.GetTenant().TenantId.ToString(), "Sites", folder.SiteId.ToString(), folder.Path);
+                    break;
+                case FolderTypes.Public:
+                    path = Utilities.PathCombine(_environment.WebRootPath, "Content", "Tenants", _tenants.GetTenant().TenantId.ToString(), "Sites", folder.SiteId.ToString(), folder.Path);
+                    break;
+            }
+            return path;
+        }
+
     }
 }

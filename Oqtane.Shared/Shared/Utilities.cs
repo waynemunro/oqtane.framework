@@ -1,4 +1,4 @@
-﻿using Oqtane.Models;
+using Oqtane.Models;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -95,11 +95,39 @@ namespace Oqtane.Shared
             return NavigateUrl(alias, path, parameters);
         }
 
-        public static string ContentUrl(Alias alias, int fileid)
+        public static string ContentUrl(Alias alias, int fileId)
         {
-            string url = (alias == null) ? "/~" : "/" + alias.AliasId;
-            url += Constants.ContentUrl + fileid.ToString();
-            return url;
+            return ContentUrl(alias, fileId, false);
+        }
+
+        public static string ContentUrl(Alias alias, int fileId, bool asAttachment)
+        {
+            var aliasUrl = (alias != null && !string.IsNullOrEmpty(alias.Path)) ? "/" + alias.Path : "";
+            var method = asAttachment ? "/attach":"";
+
+            return $"{aliasUrl}{Constants.ContentUrl}{fileId}{method}";
+        }
+
+        public static string TenantUrl(Alias alias, string url)
+        {
+            url = (!url.StartsWith("/")) ? "/" + url : url; 
+            return (alias != null && !string.IsNullOrEmpty(alias.Path)) ? "/" + alias.Path + url : url;
+        }
+
+        public static string FormatContent(string content, Alias alias, string operation)
+        {
+            switch (operation)
+            {
+                case "save":
+                    content = content.Replace(UrlCombine("Content", "Tenants", alias.TenantId.ToString(), "Sites", alias.SiteId.ToString()), "[siteroot]");
+                    content = content.Replace(alias.Path + Constants.ContentUrl, Constants.ContentUrl);
+                    break;
+                case "render":
+                    content = content.Replace("[siteroot]", UrlCombine("Content", "Tenants", alias.TenantId.ToString(), "Sites", alias.SiteId.ToString()));
+                    content = content.Replace(Constants.ContentUrl, alias.Path + Constants.ContentUrl);
+                    break;
+            }
+            return content;
         }
 
         public static string GetTypeName(string fullyqualifiedtypename)
@@ -312,6 +340,11 @@ namespace Oqtane.Shared
             }
 
             return Path.Combine(segments).TrimEnd();
+        }
+
+        public static string UrlCombine(params string[] segments)
+        {
+            return string.Join("/", segments);
         }
 
         public static bool IsPathValid(this Folder folder)

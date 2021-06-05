@@ -1,7 +1,8 @@
-﻿@namespace Oqtane.Modules.Controls
+@namespace Oqtane.Modules.Controls
 @inherits ModuleControlBase
 @inject IFolderService FolderService
 @inject IFileService FileService
+@inject IStringLocalizer<FileManager> Localizer
 
 @if (_folders != null)
 {
@@ -11,21 +12,14 @@
                 @if (ShowFolders || FolderId <= 0)
                 {
                     <div>
-                        <select class="form-control" @onchange="(e => FolderChanged(e))">
+                        <select class="form-control" value="@FolderId" @onchange="(e => FolderChanged(e))">
                             @if (string.IsNullOrEmpty(Folder))
                             {
-                                <option value="-1">&lt;Select Folder&gt;</option>
+                                <option value="-1">&lt;@Localizer["Select Folder"]&gt;</option>
                             }
                             @foreach (Folder folder in _folders)
                             {
-                                if (folder.FolderId == FolderId)
-                                {
-                                    <option value="@(folder.FolderId)" selected>@(new string('-', folder.Level * 2))@(folder.Name)</option>
-                                }
-                                else
-                                {
-                                    <option value="@(folder.FolderId)">@(new string('-', folder.Level * 2))@(folder.Name)</option>
-                                }
+                                <option value="@(folder.FolderId)">@(new string('-', folder.Level * 2))@(folder.Name)</option>
                             }
                         </select>
                     </div>
@@ -33,18 +27,11 @@
                 @if (ShowFiles)
                 {
                     <div>
-                        <select class="form-control" @onchange="(e => FileChanged(e))">
-                            <option value="-1">&lt;Select File&gt;</option>
+                        <select class="form-control" value="@FileId" @onchange="(e => FileChanged(e))">
+                            <option value="-1">&lt;@Localizer["Select File"]&gt;</option>
                             @foreach (File file in _files)
                             {
-                                if (file.FileId == FileId)
-                                {
-                                    <option value="@(file.FileId)" selected>@(file.Name)</option>
-                                }
-                                else
-                                {
-                                    <option value="@(file.FileId)">@(file.Name)</option>
-                                }
+                                <option value="@(file.FileId)">@(file.Name)</option>
                             }
                         </select>
                     </div>
@@ -62,10 +49,10 @@
                         }
                         <span id="@_progressinfoid"></span><progress id="@_progressbarid" style="width: 150px; visibility: hidden;"></progress>
                         <span class="float-right">
-                            <button type="button" class="btn btn-success" @onclick="UploadFile">Upload</button>
+                            <button type="button" class="btn btn-success" @onclick="UploadFile">@Localizer["Upload"]</button>
                             @if (ShowFiles && GetFileId() != -1)
                             {
-                                <button type="button" class="btn btn-danger" @onclick="DeleteFile">Delete</button>
+                                <button type="button" class="btn btn-danger" @onclick="DeleteFile">@Localizer["Delete"]</button>
                             }
                         </span>
                     </div>
@@ -92,6 +79,7 @@
     private string _filter = "*";
     private bool _haseditpermission = false;
     private string _image = string.Empty;
+    private File _file = null;
     private string _guid;
     private string _message = string.Empty;
     private MessageType _messagetype;
@@ -212,6 +200,7 @@
             FolderId = int.Parse((string)e.Value);
             await GetFiles();
             FileId = -1;
+            _file = null;
             _image = string.Empty;
             StateHasChanged();
         }
@@ -219,7 +208,7 @@
         {
             await logger.LogError(ex, "Error Loading Files {Error}", ex.Message);
 
-            _message = "Error Loading Files";
+            _message = Localizer["Error Loading Files"];
             _messagetype = MessageType.Error;
         }
     }
@@ -236,21 +225,22 @@
     private async Task SetImage()
     {
         _image = string.Empty;
+        _file = null;
         if (FileId != -1)
         {
-            File file = await FileService.GetFileAsync(FileId);
-            if (file != null && file.ImageHeight != 0 && file.ImageWidth != 0)
+            _file = await FileService.GetFileAsync(FileId);
+            if (_file != null && _file.ImageHeight != 0 && _file.ImageWidth != 0)
             {
                 var maxwidth = 200;
                 var maxheight = 200;
 
-                var ratioX = (double)maxwidth / (double)file.ImageWidth;
-                var ratioY = (double)maxheight / (double)file.ImageHeight;
+                var ratioX = (double)maxwidth / (double)_file.ImageWidth;
+                var ratioY = (double)maxheight / (double)_file.ImageHeight;
                 var ratio = ratioX < ratioY ? ratioX : ratioY;
 
-                _image = "<img src=\"" + ContentUrl(FileId) + "\" alt=\"" + file.Name +
-                         "\" width=\"" + Convert.ToInt32(file.ImageWidth * ratio).ToString() +
-                         "\" height=\"" + Convert.ToInt32(file.ImageHeight * ratio).ToString() + "\" />";
+                _image = "<img src=\"" + _file.Url + "\" alt=\"" + _file.Name +
+                         "\" width=\"" + Convert.ToInt32(_file.ImageWidth * ratio).ToString() +
+                         "\" height=\"" + Convert.ToInt32(_file.ImageHeight * ratio).ToString() + "\" />";
             }
         }
     }
@@ -278,7 +268,7 @@
                 {
                     await logger.LogInformation("File Upload Succeeded {Files}", upload);
 
-                    _message = "File Upload Succeeded";
+                    _message = Localizer["File Upload Succeeded"];
                     _messagetype = MessageType.Success;
 
                     await GetFiles();
@@ -298,7 +288,7 @@
                 {
                     await logger.LogError("File Upload Failed For {Files}", result.Replace(",", ", "));
 
-                    _message = "File Upload Failed";
+                    _message = Localizer["File Upload Failed"];
                     _messagetype = MessageType.Error;
                 }
             }
@@ -306,13 +296,13 @@
             {
                 await logger.LogError(ex, "File Upload Failed {Error}", ex.Message);
 
-                _message = "File Upload Failed";
+                _message = Localizer["File Upload Failed"];
                 _messagetype = MessageType.Error;
             }
         }
         else
         {
-            _message = "You Have Not Selected A File To Upload";
+            _message = Localizer["You Have Not Selected A File To Upload"];
             _messagetype = MessageType.Warning;
         }
     }
@@ -325,7 +315,7 @@
             await FileService.DeleteFileAsync(FileId);
             await logger.LogInformation("File Deleted {File}", FileId);
 
-            _message = "File Deleted";
+            _message = Localizer["File Deleted"];
             _messagetype = MessageType.Success;
 
             await GetFiles();
@@ -337,11 +327,12 @@
         {
             await logger.LogError(ex, "Error Deleting File {File} {Error}", FileId, ex.Message);
 
-            _message = "Error Deleting File";
+            _message = Localizer["Error Deleting File"];
             _messagetype = MessageType.Error;
         }
     }
 
     public int GetFileId() => FileId;
 
+    public File GetFile() => _file;
 }

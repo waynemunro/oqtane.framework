@@ -1,18 +1,66 @@
-﻿using System;
+using System;
+using System.Collections.Generic;
 using System.Linq;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Oqtane.Models;
+using Microsoft.Extensions.Configuration;
+using Oqtane.Databases.Interfaces;
+using Oqtane.Extensions;
+using Oqtane.Interfaces;
+using Oqtane.Migrations.Framework;
+using Oqtane.Repository.Databases.Interfaces;
+using Oqtane.Shared;
+
+// ReSharper disable BuiltInTypeReferenceStyleForMemberAccess
+// ReSharper disable UnusedAutoPropertyAccessor.Global
+// ReSharper disable CheckNamespace
 
 namespace Oqtane.Repository
 {
-    public class MasterDBContext : DbContext
+    public class MasterDBContext : DbContext, IMultiDatabase
     {
-        private IHttpContextAccessor _accessor;
+        private readonly IHttpContextAccessor _accessor;
+        private readonly IConfiguration _configuration;
+        private string _connectionString;
+        private string _databaseType;
 
-        public MasterDBContext(DbContextOptions<MasterDBContext> options, IHttpContextAccessor accessor) : base(options)
+        public MasterDBContext(DbContextOptions<MasterDBContext> options, IHttpContextAccessor accessor, IConfiguration configuration) : base(options)
         {
             _accessor = accessor;
+            _configuration = configuration;
+        }
+
+        public IDatabase ActiveDatabase { get; private set; }
+
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        {
+            optionsBuilder.ReplaceService<IMigrationsAssembly, MultiDatabaseMigrationsAssembly>();
+
+            if(_configuration != null)
+            {
+                if (!String.IsNullOrEmpty(_configuration.GetConnectionString("DefaultConnection")))
+                {
+                    _connectionString = _configuration.GetConnectionString("DefaultConnection")
+                        .Replace("|DataDirectory|", AppDomain.CurrentDomain.GetData("DataDirectory")?.ToString());
+                }
+
+                _databaseType = _configuration.GetSection(SettingKeys.DatabaseSection)[SettingKeys.DatabaseTypeKey];
+            }
+
+            if (!String.IsNullOrEmpty(_databaseType))
+            {
+                var type = Type.GetType(_databaseType);
+                ActiveDatabase = Activator.CreateInstance(type) as IDatabase;
+            }
+
+            if (!string.IsNullOrEmpty(_connectionString) && ActiveDatabase != null)
+            {
+                optionsBuilder.UseOqtaneDatabase(ActiveDatabase, _connectionString);
+            }
+
+            base.OnConfiguring(optionsBuilder);
         }
 
         public virtual DbSet<Alias> Alias { get; set; }
@@ -23,38 +71,7 @@ namespace Oqtane.Repository
 
         public override int SaveChanges()
         {
-            ChangeTracker.DetectChanges();
-
-            string username = "";
-            if (_accessor.HttpContext != null && _accessor.HttpContext.User.Identity.Name != null)
-            {
-                username = _accessor.HttpContext.User.Identity.Name;
-            }
-            DateTime date = DateTime.UtcNow;
-
-            var created = ChangeTracker.Entries()
-                .Where(x => x.State == EntityState.Added);
-
-            foreach (var item in created)
-            {
-                if (item.Entity is IAuditable)
-                {
-                    item.CurrentValues[nameof(IAuditable.CreatedBy)] = username;
-                    item.CurrentValues[nameof(IAuditable.CreatedOn)] = date;
-                }
-            }
-
-            var modified = ChangeTracker.Entries()
-                .Where(x => x.State == EntityState.Modified || x.State == EntityState.Added);
-
-            foreach (var item in modified)
-            {
-                if (item.Entity is IAuditable)
-                {
-                    item.CurrentValues[nameof(IAuditable.ModifiedBy)] = username;
-                    item.CurrentValues[nameof(IAuditable.ModifiedOn)] = date;
-                }
-            }
+            DbContextUtils.SaveChanges(this, _accessor);
 
             return base.SaveChanges();
         }

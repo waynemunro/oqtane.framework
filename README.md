@@ -18,7 +18,7 @@ Please note that this project is owned by the .NET Foundation and is governed by
    
 - Install the latest edition (v16.8 or higher) of [Visual Studio 2019](https://visualstudio.microsoft.com/vs/) (Community, Professional, or Enterprise Editions) with the **ASP.NET and web development** workload enabled. Oqtane works with ALL editions of Visual Studio from Community to Enterprise. If you do not have a SQL Server installation available already and you wish to use LocalDB for development, you must also install the **.NET desktop development workload**.  
 
-- Download a release or Clone the Oqtane source code to your local system. Open the **Oqtane.sln** solution file and Build the solution. 
+- Download a release or Clone the Oqtane source code to your local system. Open the **Oqtane.sln** solution file and Build the solution. Make sure you specify Oqtane.Server as the Startup Project and then Run the application.
 
 **Using Version 1:**
 
@@ -26,7 +26,7 @@ Please note that this project is owned by the .NET Foundation and is governed by
    
 - Install [Visual Studio 2019](https://visualstudio.microsoft.com/vs) (Community, Professional, or Enterprise Editions) with the **ASP.NET and web development** workload enabled. Oqtane works with ALL editions of Visual Studio from Community to Enterprise. If you do not have a SQL Server installation available already and you wish to use LocalDB for development, you must also install the **.NET desktop development workload**.  
 
-- Download a release or Clone the Oqtane source code from a v1.x Tag to your local system. Open the **Oqtane.sln** solution file and Build the solution. 
+- Download a release or Clone the Oqtane source code from a v1.x Tag to your local system. Open the **Oqtane.sln** solution file and Build the solution. Make sure you specify Oqtane.Server as the Startup Project and then Run the application.
 
 **Installing an official release:**
 
@@ -48,6 +48,30 @@ There is a separate [Documentation repository](https://github.com/oqtane/oqtane.
 
 # Roadmap
 This project is a work in progress and the schedule for implementing enhancements is dependent upon the availability of community members who are willing/able to assist.
+
+V.3.0.0 ( Q4 2021 )
+- [ ] Migration to .NET 6
+
+V.2.2.0 ( Q3 2021 )
+- [ ] Alternate Authentication Providers ( ie. Azure B2C, Social logins, etc... )
+- [ ] Configurable password complexity for local authentication
+
+V.2.1.0 ( June 2021 )
+- [x] Cross Platform Database Support ( ie. LocalDB, SQL Server, SQLite, MySQL, PostgreSQL ) - see [#964](https://github.com/oqtane/oqtane.framework/discussions/964)
+- [x] Utilize EF Core Migrations - see [#964](https://github.com/oqtane/oqtane.framework/discussions/964)
+- [x] Include support for Public content folders
+- [x] Enhance multi-tenant infrastructure
+- [x] Optimize user authorization
+- [x] Centralize package installation and uninstall
+- [x] Enable pre-rendering support for Blazor Server
+- [x] Allow run-time installation of Language packages
+- [x] Add support for Shared localization resources
+
+V.2.0.2 ( Apr 19, 2021 )
+- [x] Assorted fixes and user experience improvements
+
+V.2.0.1 ( Feb 27, 2021 )
+- [x] Complete Static Localization of Admin UI
 
 V.2.0.0 ( released in conjuntion with .NET 5 on Nov 11, 2020 )
 - [x] Migration to .NET 5
@@ -75,12 +99,6 @@ V.1.0.0 ( released in conjunction with .NET Core 3.2 on May 19, 2020 )
 - [x] Progressive Web Application Support
 - [x] JavaScript Lazy Loading
 - [x] Dynamic CSS/Lazy Loading
-
-Future Consideration
-- [ ] Admin UI markup optimization ( ie. replace tables with divs in forms )
-- [ ] DB Migrations for framework installation/upgrade
-- [ ] Support for SQLite
-- [ ] OAuth Support
 
 # Background
 Oqtane was created by [Shaun Walker](https://www.linkedin.com/in/shaunbrucewalker/) and is inspired by the DotNetNuke web application framework. Initially created as a proof of concept, Oqtane is a native Blazor application written from the ground up using modern .NET Core technology. It is a modular application framework offering a fully dynamic page compositing model, multi-site support, designer friendly templates (skins), and extensibility via third party modules.

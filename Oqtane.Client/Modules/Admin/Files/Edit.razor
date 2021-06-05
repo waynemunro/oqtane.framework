@@ -1,21 +1,22 @@
-﻿@namespace Oqtane.Modules.Admin.Files
+@namespace Oqtane.Modules.Admin.Files
 @inherits ModuleBase
 @inject IFolderService FolderService
 @inject IFileService FileService
 @inject NavigationManager NavigationManager
+@inject IStringLocalizer<Edit> Localizer
 
 @if (_folders != null)
 {
     <table class="table table-borderless">
         <tr>
             <td>
-                <Label For="parent" HelpText="Select the parent folder">Parent: </Label>
+                <Label For="parent" HelpText="Select the parent folder" ResourceKey="Parent">Parent: </Label>
             </td>
             <td>
                 <select id="parent" class="form-control" @bind="@_parentId">
                     @if (PageState.QueryString.ContainsKey("id"))
                     {
-                        <option value="-1">&lt;No Parent&gt;</option>
+                        <option value="-1">&lt;@Localizer["No Parent"]&gt;</option>
                     }
                     @foreach (Folder folder in _folders)
                     {
@@ -26,27 +27,45 @@
         </tr>
         <tr>
             <td>
-                <Label for="name" HelpText="Enter the folder name">Name: </Label>
+                <Label for="name" HelpText="Enter the folder name" ResourceKey="Name">Name: </Label>
             </td>
             <td>
                 <input id="name" class="form-control" @bind="@_name" />
             </td>
         </tr>
         <tr>
+            <td>
+                <Label for="type" HelpText="Select the folder type. Private folders are only accessible by authorized users. Public folders can be accessed by all users" ResourceKey="Name">Type: </Label>
+            </td>
+            <td>
+                @if (PageState.QueryString.ContainsKey("id"))
+                {
+                    <input id="type" class="form-control" readonly @bind="@_type" />
+                }
+                else
+                {
+                    <select id="type" class="form-control" @bind="@_type">
+                        <option value="@FolderTypes.Private">@Localizer[FolderTypes.Private]</option>
+                        <option value="@FolderTypes.Public">@Localizer[FolderTypes.Public]</option>
+                    </select>
+                }
+            </td>
+        </tr>
+        <tr>
             <td colspan="2" align="center">
-                <Label For="permissions" HelpText="Select the permissions you want for the folder">Permissions: </Label>
-                <PermissionGrid EntityName="@EntityNames.Folder" PermissionNames="Browse,View,Edit" Permissions="@_permissions" @ref="_permissionGrid" />
+                <Label For="permissions" HelpText="Select the permissions you want for the folder" ResourceKey="Permissions">Permissions: </Label>
+                <PermissionGrid EntityName="@EntityNames.Folder" PermissionNames="@(PermissionNames.Browse + "," + PermissionNames.View + "," + PermissionNames.Edit)" Permissions="@_permissions" @ref="_permissionGrid" />
             </td>
         </tr>
     </table>
     @if (!_isSystem)
     {
-        <button type="button" class="btn btn-success" @onclick="SaveFolder">Save</button>
+        <button type="button" class="btn btn-success" @onclick="SaveFolder">@Localizer["Save"]</button>
     }
-    <NavLink class="btn btn-secondary" href="@NavigateUrl()">Cancel</NavLink>
+    <NavLink class="btn btn-secondary" href="@NavigateUrl()">@Localizer["Cancel"]</NavLink>
     @if (!_isSystem && PageState.QueryString.ContainsKey("id"))
     {
-        <ActionDialog Header="Delete Folder" Message="@("Are You Sure You Wish To Delete This Folder?")" Action="Delete" Security="SecurityAccessLevel.Admin" Class="btn btn-danger" OnClick="@(async () => await DeleteFolder())" />
+        <ActionDialog Header="Delete Folder" Message="Are You Sure You Wish To Delete This Folder?" Action="Delete" Security="SecurityAccessLevel.Admin" Class="btn btn-danger" OnClick="@(async () => await DeleteFolder())" ResourceKey="DeleteFolder" />
     }
     <br />
     <br />
@@ -59,8 +78,9 @@
 @code {
     private List<Folder> _folders;
     private int _folderId = -1;
-    private string _name;
     private int _parentId = -1;
+    private string _name;
+    private string _type = FolderTypes.Private;
     private bool _isSystem;
     private string _permissions = string.Empty;
     private string _createdBy;
@@ -90,6 +110,7 @@
                 {
                     _parentId = folder.ParentId ?? -1;
                     _name = folder.Name;
+                    _type = folder.Type;
                     _isSystem = folder.IsSystem;
                     _permissions = folder.Permissions;
                     _createdBy = folder.CreatedBy;
@@ -107,7 +128,7 @@
         catch (Exception ex)
         {
             await logger.LogError(ex, "Error Loading Folder {FolderId} {Error}", _folderId, ex.Message);
-            AddModuleMessage("Error Loading Folder", MessageType.Error);
+            AddModuleMessage(Localizer["Error Loading Folder"], MessageType.Error);
         }
     }
 
@@ -115,13 +136,13 @@
     {
         if (_name == string.Empty || _parentId == -1)
         {
-            AddModuleMessage("Folders Must Have A Parent And A Name", MessageType.Warning);
+            AddModuleMessage(Localizer["Folders Must Have A Parent And A Name"], MessageType.Warning);
             return;
         }
 
         if (!_name.IsPathOrFileValid())
         {
-            AddModuleMessage("Folder Name Not Valid.", MessageType.Warning);
+            AddModuleMessage(Localizer["Folder Name Not Valid."], MessageType.Warning);
             return;
         }
 
@@ -149,6 +170,7 @@
             }
 
             folder.Name = _name;
+            folder.Type = _type;
             folder.IsSystem = _isSystem;
             folder.Permissions = _permissionGrid.GetPermissions();
 
@@ -169,13 +191,13 @@
             }
             else
             {
-                AddModuleMessage("An Error Was Encountered Saving The Folder", MessageType.Error);
+                AddModuleMessage(Localizer["An Error Was Encountered Saving The Folder"], MessageType.Error);
             }
         }
         catch (Exception ex)
         {
             await logger.LogError(ex, "Error Saving Folder {FolderId} {Error}", _folderId, ex.Message);
-            AddModuleMessage("Error Saving Folder", MessageType.Error);
+            AddModuleMessage(Localizer["Error Saving Folder"], MessageType.Error);
         }
     }
 
@@ -203,18 +225,18 @@
                 }
                 else
                 {
-                    AddModuleMessage("Folder Has Files And Cannot Be Deleted", MessageType.Warning);
+                    AddModuleMessage(Localizer["Folder Has Files And Cannot Be Deleted"], MessageType.Warning);
                 }
             }
             else
             {
-                AddModuleMessage("Folder Has Subfolders And Cannot Be Deleted", MessageType.Warning);
+                AddModuleMessage(Localizer["Folder Has Subfolders And Cannot Be Deleted"], MessageType.Warning);
             }
         }
         catch (Exception ex)
         {
             await logger.LogError(ex, "Error Deleting Folder {Folder} {Error}", _folderId, ex.Message);
-            AddModuleMessage("Error Deleting Folder", MessageType.Error);
+            AddModuleMessage(Localizer["Error Deleting Folder"], MessageType.Error);
         }
     }
 }

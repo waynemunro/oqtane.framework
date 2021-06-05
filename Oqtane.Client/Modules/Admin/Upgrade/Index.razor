@@ -1,36 +1,39 @@
-﻿@namespace Oqtane.Modules.Admin.Upgrade
+@namespace Oqtane.Modules.Admin.Upgrade
 @inherits ModuleBase
 @inject NavigationManager NavigationManager
 @inject IFileService FileService
 @inject IPackageService PackageService
 @inject IInstallationService InstallationService
+@inject IStringLocalizer<Index> Localizer
 
 @if (_package != null)
 {
     <TabStrip>
-        <TabPanel Name="Download">
+        <TabPanel Name="Download" ResourceKey="Download">
             @if (_upgradeavailable)
             {
-                <ModuleMessage Type="MessageType.Info" Message="Select The Upgrade Button To Install a New Framework Version"></ModuleMessage>
-                <button type="button" class="btn btn-success" @onclick=@(async () => await Download(Constants.PackageId, @_package.Version))>Upgrade To @_package.Version</button>
+                <ModuleMessage Type="MessageType.Info" Message="Select The Download Button To Download The Framework Upgrade Package And Then Select Upgrade"></ModuleMessage>
+                <button type="button" class="btn btn-primary" @onclick=@(async () => await Download(Constants.PackageId, @_package.Version))>@Localizer["Download"] @_package.Version</button>
+                <button type="button" class="btn btn-success" @onclick="Upgrade">@Localizer["Upgrade"]</button>
             }
             else
             {
                 <ModuleMessage Type="MessageType.Info" Message="Framework Is Already Up To Date"></ModuleMessage>
             }
         </TabPanel>
-        <TabPanel Name="Upload">
+        <TabPanel Name="Upload" ResourceKey="Upload">
+            <ModuleMessage Type="MessageType.Info" Message="Upload A Framework Package (Oqtane.Framework.version.nupkg) And Then Select Upgrade"></ModuleMessage>
             <table class="table table-borderless">
                 <tr>
                     <td>
-                        <Label HelpText="Upload a framework package and select Install to complete the installation">Framework: </Label>
+                        <Label HelpText="Upload A Framework Package And Then Select Upgrade" ResourceKey="Framework">Framework: </Label>
                     </td>
                     <td>
-                        <FileManager Filter="nupkg" ShowFiles="false" Folder="Framework" />
+                        <FileManager Filter="nupkg" ShowFiles="false" Folder="Packages" />
                     </td>
                 </tr>
             </table>
-            <button type="button" class="btn btn-success" @onclick="Upgrade">Install</button>
+            <button type="button" class="btn btn-success" @onclick="Upgrade">@Localizer["Upgrade"]</button>
         </TabPanel>
     </TabStrip>
 }
@@ -48,7 +51,7 @@
             List<Package> packages = await PackageService.GetPackagesAsync("framework");
             if (packages != null)
             {
-                _package = packages.FirstOrDefault();
+                _package = packages.Where(item => item.PackageId.StartsWith(Constants.PackageId)).FirstOrDefault();
                 if (_package != null)
                 {
                     _upgradeavailable = (Version.Parse(_package.Version).CompareTo(Version.Parse(Constants.Version)) > 0);
@@ -69,15 +72,16 @@
     {
         try
         {
+            AddModuleMessage(Localizer["Please Be Patient While The Upgrade Is In Progress..."], MessageType.Info);
             ShowProgressIndicator();
             var interop = new Interop(JSRuntime);
-            await interop.RedirectBrowser(NavigateUrl(), 10);
+            await interop.RedirectBrowser(NavigateUrl(), 30);
             await InstallationService.Upgrade();
         }
         catch (Exception ex)
         {
             await logger.LogError(ex, "Error Executing Upgrade {Error}", ex.Message);
-            AddModuleMessage("Error Executing Upgrade", MessageType.Error);
+            AddModuleMessage(Localizer["Error Executing Upgrade"], MessageType.Error);
         }
     }
 
@@ -85,16 +89,14 @@
     {
         try
         {
-            await PackageService.DownloadPackageAsync(packageid, version, "Framework");
-            ShowProgressIndicator();
-            var interop = new Interop(JSRuntime);
-            await interop.RedirectBrowser(NavigateUrl(), 10);
-            await InstallationService.Upgrade();
+            await PackageService.DownloadPackageAsync(packageid, version, "Packages");
+            await PackageService.DownloadPackageAsync(Constants.UpdaterPackageId, version, "Packages");
+            AddModuleMessage(Localizer["Framework Downloaded Successfully... Please Select Upgrade To Complete the Process"], MessageType.Success);
         }
         catch (Exception ex)
         {
-            await logger.LogError(ex, "Error Downloading Framework {Error}", ex.Message);
-            AddModuleMessage("Error Downloading Framework", MessageType.Error);
+            await logger.LogError(ex, "Error Downloading Framework Package {Error}", ex.Message);
+            AddModuleMessage(Localizer["Error Downloading Framework Package"], MessageType.Error);
         }
     }
 }

@@ -1,4 +1,4 @@
-﻿using Oqtane.Models;
+using Oqtane.Models;
 using System.Threading.Tasks;
 using System.Linq;
 using System.Net.Http;
@@ -7,9 +7,11 @@ using Oqtane.Shared;
 using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
+using Oqtane.Documentation;
 
 namespace Oqtane.Services
 {
+    [PrivateApi("Don't show in the documentation, as everything should use the Interface")]
     public class FolderService : ServiceBase, IFolderService
     {
         private readonly SiteState _siteState;
@@ -19,7 +21,7 @@ namespace Oqtane.Services
             _siteState = siteState;
         }
 
-        private string ApiUrl => CreateApiUrl(_siteState.Alias, "Folder");
+        private string ApiUrl => CreateApiUrl("Folder", _siteState.Alias);
 
         public async Task<List<Folder>> GetFoldersAsync(int siteId)
         {
@@ -35,13 +37,7 @@ namespace Oqtane.Services
 
         public async Task<Folder> GetFolderAsync(int siteId, [NotNull] string folderPath)
         {
-            if (!(folderPath.EndsWith(System.IO.Path.DirectorySeparatorChar) || folderPath.EndsWith(System.IO.Path.AltDirectorySeparatorChar)))
-            {
-                folderPath = Utilities.PathCombine(folderPath, "\\");
-            }
-            
             var path = WebUtility.UrlEncode(folderPath);
-            
             return await GetJsonAsync<Folder>($"{ApiUrl}/{siteId}/{path}");
         }
 

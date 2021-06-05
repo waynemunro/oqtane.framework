@@ -80,7 +80,7 @@
         var urlparameters = string.Empty;
         var editmode = false;
         var reload = Reload.None;
-        var lastsyncdate = DateTime.UtcNow;
+        var lastsyncdate = DateTime.UtcNow.AddHours(-1);
         var runtime = GetRuntime();
 
         Uri uri = new Uri(_absoluteUri);
@@ -107,12 +107,13 @@
         SiteState.Alias = alias; // set state for services
         lastsyncdate = alias.SyncDate;
 
-        // process any sync events for site or page
+        // process any sync events
         if (reload != Reload.Site && alias.SyncEvents.Any())
         {
-            if (PageState != null && alias.SyncEvents.Exists(item => item.EntityName == EntityNames.Page && item.EntityId == PageState.Page.PageId))
+            // if running on WebAssembly reload the client application if the server application was restarted
+            if (runtime == Shared.Runtime.WebAssembly && PageState != null && alias.SyncEvents.Exists(item => item.TenantId == -1))
             {
-                reload = Reload.Page;
+                NavigationManager.NavigateTo(_absoluteUri + (!_absoluteUri.Contains("?") ? "?" : "&") + "reload", true);
             }
             if (alias.SyncEvents.Exists(item => item.EntityName == EntityNames.Site && item.EntityId == alias.SiteId))
             {
@@ -155,7 +156,7 @@
                 }
             }
 
-            if (PageState == null || reload >= Reload.Site)
+            if (PageState == null || reload == Reload.Site)
             {
                 pages = await PageService.GetPagesAsync(site.SiteId);
             }
@@ -207,7 +208,6 @@
                         action = segments[actionPos];
                     }
                 }
-
             }
 
             // check if path has moduleid and action specification ie. pagename/*/moduleid/action/
@@ -223,7 +223,6 @@
                 {
                     path = path.Replace(segments[modIdPos - 1] + "/" + segments[modIdPos] + "/" + segments[actionPos] + "/", "");
                 }
-
             }
 
             if (urlParametersPos > 0)
@@ -234,9 +233,9 @@
             // remove trailing slash so it can be used as a key for Pages
             if (path.EndsWith("/")) path = path.Substring(0, path.Length - 1);
 
-            if (PageState == null || reload >= Reload.Page)
+            if (PageState == null || reload == Reload.Site)
             {
-                page = pages.Where(item => item.Path == path).FirstOrDefault();
+                page = pages.FirstOrDefault(item => item.Path.Equals(path, StringComparison.OrdinalIgnoreCase));
             }
             else
             {
@@ -254,7 +253,6 @@
             if (page != null && page.Path != path)
             {
                 page = pages.Where(item => item.Path == path).FirstOrDefault();
-                reload = Reload.Page;
                 editmode = false;
             }
 
@@ -270,12 +268,7 @@
                 {
                     page = await ProcessPage(page, site, user);
 
-                    if (PageState != null && (PageState.ModuleId != moduleid || PageState.Action != action))
-                    {
-                        reload = Reload.Page;
-                    }
-
-                    if (PageState == null || reload >= Reload.Site)
+                    if (PageState == null || reload == Reload.Site)
                     {
                         modules = await ModuleService.GetModulesAsync(site.SiteId);
                     }
@@ -283,6 +276,7 @@
                     {
                         modules = PageState.Modules;
                     }
+
                     (page, modules) = ProcessModules(page, modules, moduleid, action, (!string.IsNullOrEmpty(page.DefaultContainerType)) ? page.DefaultContainerType : site.DefaultContainerType);
 
                     _pagestate = new PageState
@@ -311,7 +305,7 @@
                 if (user == null)
                 {
                     // redirect to login page
-                    NavigationManager.NavigateTo(Utilities.NavigateUrl(alias.Path, "login", "returnurl=" + path));
+                    NavigationManager.NavigateTo(Utilities.NavigateUrl(alias.Path, "login", "?returnurl=" + path));
                 }
                 else
                 {
@@ -343,16 +337,18 @@
             _navigationInterceptionEnabled = true;
             return NavigationInterception.EnableNavigationInterceptionAsync();
         }
-
         return Task.CompletedTask;
     }
 
     private Dictionary<string, string> ParseQueryString(string query)
     {
-        Dictionary<string, string> querystring = new Dictionary<string, string>();
+        Dictionary<string, string> querystring = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase); // case insensistive keys
         if (!string.IsNullOrEmpty(query))
         {
-            query = query.Substring(1); // ignore "?"
+            if (query.StartsWith("?"))
+            {
+                query = query.Substring(1); // ignore "?"
+            }
             foreach (string kvp in query.Split(new[] { '&' }, StringSplitOptions.RemoveEmptyEntries))
             {
                 if (kvp != "")
@@ -387,21 +383,15 @@
                 page.ThemeType = site.DefaultThemeType;
             }
 
-            if (string.IsNullOrEmpty(page.LayoutType))
-            {
-                page.LayoutType = site.DefaultLayoutType;
-            }
-
             page.Panes = new List<string>();
             page.Resources = new List<Resource>();
 
-            string panes = "";
+            string panes = PaneNames.Admin;
             Type themetype = Type.GetType(page.ThemeType);
             if (themetype == null)
             {
                 // fallback
                 page.ThemeType = Constants.DefaultTheme;
-                page.LayoutType = Constants.DefaultLayout;
                 themetype = Type.GetType(Constants.DefaultTheme);
             }
             if (themetype != null)
@@ -409,24 +399,13 @@
                 var themeobject = Activator.CreateInstance(themetype) as IThemeControl;
                 if (themeobject != null)
                 {
-                    panes = themeobject.Panes;
+                    if (!string.IsNullOrEmpty(themeobject.Panes))
+                    {
+                        panes = themeobject.Panes;
+                    }
                     page.Resources = ManagePageResources(page.Resources, themeobject.Resources);
                 }
             }
-
-            if (!string.IsNullOrEmpty(page.LayoutType))
-            {
-                Type layouttype = Type.GetType(page.LayoutType);
-                if (layouttype != null)
-                {
-                    var layoutobject = Activator.CreateInstance(layouttype) as IThemeControl;
-                    if (layoutobject != null)
-                    {
-                        panes = layoutobject.Panes;
-                    }
-                }
-            }
-
             page.Panes = panes.Replace(";", ",").Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).ToList();
         }
         catch
@@ -476,26 +455,38 @@
                     }
                 }
 
-                module.ModuleType = typename.Replace(Constants.ActionToken, action);
-
-                // get additional metadata from IModuleControl interface
-                typename = module.ModuleType;
-                if (Constants.DefaultModuleActions.Contains(action))
+                // ensure component exists and implements IModuleControl
+                module.ModuleType = "";
+                if (Constants.DefaultModuleActions.Contains(action, StringComparer.OrdinalIgnoreCase))
                 {
-                    // core framework module action components
                     typename = Constants.DefaultModuleActionsTemplate.Replace(Constants.ActionToken, action);
                 }
-                Type moduletype = Type.GetType(typename);
-
-                // ensure component implements IModuleControl
-                if (moduletype != null && !moduletype.GetInterfaces().Contains(typeof(IModuleControl)))
+                else
                 {
-                    module.ModuleType = "";
+                    typename = typename.Replace(Constants.ActionToken, action);
                 }
+                Type moduletype = Type.GetType(typename, false, true); // case insensitive
+                if (moduletype != null && moduletype.GetInterfaces().Contains(typeof(IModuleControl)))
+                {
+                    module.ModuleType = Utilities.GetFullTypeName(moduletype.AssemblyQualifiedName); // get actual type name
+                }
+
+                // get additional metadata from IModuleControl interface
                 if (moduletype != null && module.ModuleType != "")
                 {
+                    // retrieve module component resources
                     var moduleobject = Activator.CreateInstance(moduletype) as IModuleControl;
                     page.Resources = ManagePageResources(page.Resources, moduleobject.Resources);
+                    if (action.ToLower() == "settings" && module.ModuleDefinition != null)
+                    {
+                        // settings components are embedded within a framework settings module
+                        moduletype = Type.GetType(module.ModuleDefinition.ControlTypeTemplate.Replace(Constants.ActionToken, action), false, true);
+                        if (moduletype != null)
+                        {
+                            moduleobject = Activator.CreateInstance(moduletype) as IModuleControl;
+                            page.Resources = ManagePageResources(page.Resources, moduleobject.Resources);
+                        }
+                    }
 
                     // additional metadata needed for admin components
                     if (module.ModuleId == moduleid && action != "")
@@ -560,8 +551,9 @@
         return pageresources;
     }
 
-    private Runtime GetRuntime()
+    private Oqtane.Shared.Runtime GetRuntime()
 => RuntimeInformation.IsOSPlatform(OSPlatform.Create("BROWSER"))
-        ? Runtime.WebAssembly
-        : Runtime.Server;
+        ? Oqtane.Shared.Runtime.WebAssembly
+        : Oqtane.Shared.Runtime.Server;
+
 }

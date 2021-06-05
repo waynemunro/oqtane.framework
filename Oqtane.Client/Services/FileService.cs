@@ -1,15 +1,17 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.JSInterop;
+using Oqtane.Documentation;
 using Oqtane.Models;
 using Oqtane.Shared;
 using Oqtane.UI;
 
 namespace Oqtane.Services
 {
+    [PrivateApi("Don't show in the documentation, as everything should use the Interface")]
     public class FileService : ServiceBase, IFileService
     {
         private readonly SiteState _siteState;
@@ -21,7 +23,7 @@ namespace Oqtane.Services
             _jsRuntime = jsRuntime;
         }
 
-        private string Apiurl => CreateApiUrl(_siteState.Alias, "File");
+        private string Apiurl => CreateApiUrl("File", _siteState.Alias);
 
         public async Task<List<File>> GetFilesAsync(int folderId)
         {
@@ -37,11 +39,11 @@ namespace Oqtane.Services
         {
             if (!(folderPath.EndsWith(System.IO.Path.DirectorySeparatorChar) || folderPath.EndsWith(System.IO.Path.AltDirectorySeparatorChar)))
             {
-                folderPath = Utilities.PathCombine(folderPath,"\\");
+                folderPath = Utilities.PathCombine(folderPath, System.IO.Path.DirectorySeparatorChar.ToString());
             }
-            
+
             var path = WebUtility.UrlEncode(folderPath);
-            
+
             return await GetJsonAsync<List<File>>($"{Apiurl}/{siteId}/{path}");
         }
 
